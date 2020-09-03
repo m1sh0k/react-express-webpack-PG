@@ -1,0 +1,23 @@
+{
+  "port": 7777,
+  "AdministratorId": "5df9fb172c2bb91d1096aba6",
+  "pg": {
+    "user": "postgres",
+    "host": "localhost",
+    "database": "react_express_webpack_PG",
+    "password": "19Inetkmn83",
+    "port": 5432
+  },
+  "session": {
+    "secret": "FackYouSpielbirg",
+    "resave": true,
+    "saveUninitialized": true,
+    "key": "sid",
+    "cookie": {
+      "path": "/",
+      "httpOnly": true,
+      "maxAge": null
+    }
+  }
+}
+

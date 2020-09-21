@@ -98,9 +98,10 @@ module.exports = function(app) {
     app.post('/checkName',async function (req, res) {
         var newUsername = req.body.newUsername;
         console.log('/checkName newUsername: ',newUsername);
-        let user = await User.findOne({username:newUsername});
-        if (!user) res.send({})
-        else res.send({user});
+        let user = await User.findOne({where:{username:newUsername}});
+        if (!user) {
+            res.sendStatus(200)
+        } else res.sendStatus(403);
     });
 
     app.post('/changeUserData', async function(req, res, next) {
@@ -119,6 +120,7 @@ module.exports = function(app) {
             console.log('/login newUser: ', user);
             req.session.user = user._id;
             res.send({user});
+            common.emit('changeUserName',newUsername,(err)=>{if(err) return next(err)});//Internal Node emit to socketIo changeUserName
         } catch (err) {
             console.log('/login err: ',err);
             return next(err);

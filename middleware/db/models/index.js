@@ -9,7 +9,8 @@ const sequelize = new Sequelize(pgConf.database,pgConf.username, pgConf.password
     dialect: 'postgres',
 });
 const { Op } = require("sequelize");
-
+//////////////////////////////////////////////////////////////////
+//Create MUser Table
 const User = sequelize.define('user', {
     _id: {
         type: Sequelize.INTEGER,
@@ -71,7 +72,8 @@ BlockedContacts.sync();
 //
 User.belongsToMany(User, {as:'contacts',otherKey:'contactId',foreignKey:'userId',through: 'Contacts'});
 User.belongsToMany(User, {as:'blockedContacts',otherKey:'blockedContactId',foreignKey:'userId',through: 'BlockedContacts'});
-//
+//////////////////////////////////////////////////////////////////
+//Create Room Table
 var Room = sequelize.define('room', {
     _id: {
         type: Sequelize.INTEGER,
@@ -116,7 +118,8 @@ Room.belongsToMany(User, {as: 'blockedMembers', through: UserRoom});
 //Magic methods setBlockedMembers, addBlockedMembers, removeBlockedMembers eth..
 User.belongsToMany(Room, {as:'rooms', through: UserRoom});
 //Magic methods setRooms, addRooms, removeRooms eth..
-//
+//////////////////////////////////////////////////////////////////
+//Create Message Table
 const Message = sequelize.define('message', {
     _id: {
         type: Sequelize.INTEGER,
@@ -167,28 +170,7 @@ MessageData.sync();
 Message.belongsToMany(User, {as: 'recipients',through: MessageData});
 Message.belongsTo(User, {foreignKey:'forwardFrom'});
 Message.sync();
-
-Message.prototype.reformatData = async function() {
-    let mes = JSON.stringify(this);
-    mes = JSON.parse(mes);
-    console.log("Message.prototype.reformatData mes: ", mes);
-    if(Array.isArray(mes)){
-        return mes.map((itm) => {
-            itm.recipients.forEach((user) => {
-                user['status'] = user.MessageData.status;
-                delete user.MessageData
-            });
-            return itm;
-        });
-    } else {
-        mes.recipients.forEach((user) => {
-            user['status'] = user.MessageData.status;
-            delete user.MessageData
-        });
-        return mes;
-    }
-};
-
+//////////////////////////////////////////////////////////////////
 //message methods
 Message.messageHandler = async function (data,limit) {
     var Message = this;
@@ -211,8 +193,6 @@ Message.messageHandler = async function (data,limit) {
                     through: {attributes: ['status']}
                 }
             });
-            //await mes.reformatData();
-            //console.log('DB messageHandler mes: ',mes);
             return {err:null,mes:mes};//return current message
         }else {//read data and return log
             let mes = await Message.findAll({
@@ -229,8 +209,6 @@ Message.messageHandler = async function (data,limit) {
                 }
             });
             mes.sort((a,b) => a.createdAt > b.createdAt);
-            //await mes.reformatData();
-            //console.log('DB messageHandler mes2: ',mes);
             return {err:null,mes: mes};
         }
     } catch(err) {
@@ -239,17 +217,17 @@ Message.messageHandler = async function (data,limit) {
     }
 };
 //////////////////////////////////////////////////////////////////
-//internal methods
+//User internal methods
 User.prototype.encryptPassword = function(password) {
     console.log("encryptPassword password: ",password);
     return CryptoJS.HmacSHA1(password,this.salt).toString(CryptoJS.enc.Hex);
 };
-
+//
 User.prototype.checkPassword = function(password) {
     console.log("checkPassword password: ",password);
     return  this.encryptPassword(password) === this.hashedPassword;
 };
-
+//
 User.prototype.reformatData = async function() {
     let nameUserDB = this;
     //console.log("reformatData: ",nameUserDB);
@@ -259,16 +237,6 @@ User.prototype.reformatData = async function() {
     if(nameUserDB.rooms) nameUserDB.rooms = nameUserDB.rooms.map(itm => itm.name)  || [];
     return nameUserDB
 };
-
-Room.prototype.reformatData = async function() {
-    let nameUserDB = this;
-    //console.log("reformatData: ",nameUserDB);
-    nameUserDB = nameUserDB.toJSON();
-    nameUserDB.members = nameUserDB.members.map(itm => itm.username);
-    nameUserDB.blockedMembers = nameUserDB.blockedMembers.map(itm => itm.username);
-    return nameUserDB
-};
-
 //user methods
 User.authorize = async function(paramAuth) {
     let User = this;
@@ -401,114 +369,101 @@ User.userMFCTBC = async function (reqUser,contact) {//MoveFromContactsToBlockedC
     }
 };
 //
+User.userRFAL = async function (reqUser,contact) {//RemoveFromAllList
+    let User = this;
+    let user = {};
+    console.log('userRFAL userReq: ',reqUser,",","moving contact: ",contact);
+    try {
+        user = await User.findOne({where:{username:reqUser}});
+        if(!user) return ({err:"No user name "+reqUser+" found.",user:null});
+        await user.removeContacts(contact);
+        user = await user.removeBlockedContacts(contact);
+        return {err:null,user:user};
+    } catch(err) {
+        console.log('userRFAL err: ',err);
+        return {err:err,user:null};
+    }
+};
 //
-// //
-// User.userRFAL = async function (reqUser,contact) {//RemoveFromAllList
-//     let User = this;
-//     let user = {};
-//     console.log('userRFAL userReq: ',reqUser,",","moving contact: ",contact);
-//     try {
-//         user = await User.findOne({rew:true,where:{username:reqUser}});
-//         if(!user) return ({err:"No user name "+reqUser+" found.",user:null});
-//         user = await User.update(
-//             {
-//                 blockedContacts:[...user.blockedContacts.filter(itm => itm !== contact)],
-//                 contacts:[...user.contacts.filter(itm => itm !== contact)]
-//             },
-//             {where:{username:reqUser}}
-//         );
-//         return {err:null,user:user};
-//     } catch(err) {
-//         console.log('userRFAL err: ',err);
-//         return {err:err,user:null};
-//     }
-// };
-// //
-// User.findOneAndCheckPass = async function (data) {
-//     let User = this;
-//     let user = {};
-//     let err = {};
-//     console.log('findOneAndCheckPass data: ',data);
-//     try {
-//         user = await User.findOne({where:{username: data.username}});
-//         if(user.checkPassword(data.password)) {
-//             return {err:null,user:user};
-//         } else {
-//             err = new AuthError("Password is incorrect");
-//             console.log('user.err: ',err);
-//             return {err:err,user:null};
-//         }
-//     } catch(err) {
-//         console.log('findOneAndCheckPass err: ',err);
-//         return {err:err,user:null};
-//     }
-//
-// };
-//
-
-//
-// user.statics.changeData = async function(paramAuth) {
-//     let User = this;
-//     let user = {};
-//     let err = {};
-//     try {
-//         user = await User.findOne({username: paramAuth.oldUsername});
-//         console.log('async changeData user:',user);
-//         if (user) {
-//             if(user.checkPassword(paramAuth.oldPassword)) {
-//                 user.username = paramAuth.newUsername;
-//                 user.password = paramAuth.newPassword;
-//                 await user.save();
-//                 return {err:null,user:user};
-//             } else {
-//                 err = new AuthError("Password is incorrect");
-//                 console.log('user.err: ',err);
-//                 return {err:err,user:null};
-//             }
-//         } else {
-//             err = new AuthError("Old Username is incorrect");
-//             console.log('user.err: ',err);
-//             return {err:err,user:null};
-//         }
-//     } catch (err) {
-//         console.log('changeData err: ',err);
-//         return {err:err,user:null};
-//     }
-// };
+User.changeData = async function(paramAuth) {
+    let User = this;
+    let user = {};
+    let err = {};
+    try {
+        user = await User.findOne({where:{username: paramAuth.oldUsername}});
+        console.log('async changeData user:',user);
+        let newUserName = await User.findOne({where:{username:paramAuth.newUsername}});
+        if(newUserName) return {err:"New Username is already taken.",user:null};
+        if (user) {
+            if(user.checkPassword(paramAuth.oldPassword)) {
+                user = await user.update({
+                    username: paramAuth.newUsername,
+                    password: paramAuth.newPassword
+                },{
+                    where:{
+                        username:paramAuth.oldUsername
+                    }
+                });
+                return {err:null,user:user};
+            } else {
+                err = new AuthError("Password is incorrect");
+                console.log('user.err: ',err);
+                return {err:err,user:null};
+            }
+        } else {
+            err = new AuthError("Old Username is incorrect");
+            console.log('user.err: ',err);
+            return {err:err,user:null};
+        }
+    } catch (err) {
+        console.log('changeData err: ',err);
+        return {err:err,user:null};
+    }
+};
 // //
 
 // //room methods
 // var User = mongoose.model('User', user);
 // var Message = mongoose.model('Message', message);
-//create new room and push roomName to user room list
+//create new room and push roomName to user room list]
 
 
-Room.createRoom = async function(roomName,username) {
-    let Room = this;
-    let room = {};
-    let err = {};
-    try {
-        let user = await User.findOne({where:{username:username}});
-        room = await Room.findOne({where:{name:roomName}});
-        if(!room){
-            room = await Room.create({name:roomName});
-            room.members.push({});
-            user.rooms.push(room.name);
-            room.save();
-            user.save();
-            console.log('Room.createRoom room: ',Object.keys(room.__proto__));
-            console.log('Room.createRoom user: ',Object.keys(user.__proto__));
-            await room.addMembers(user);
-            await user.addRooms(room,{through:{enable:true,admin:true}});
-            return {err:null,room:room,user:user}
-        }else{
-            return {err:"A group named "+roomName+" already exists. Choose another group name.",room:null,user:null};
-        }
-    } catch (err) {
-        console.log('createRoom err: ',err);
-        return {err:err,room:null,user:null};
-    }
+//Room internal methods
+Room.prototype.reformatData = async function() {
+    let nameUserDB = this;
+    //console.log("reformatData: ",nameUserDB);
+    nameUserDB = nameUserDB.toJSON();
+    nameUserDB.members = nameUserDB.members.map(itm => itm.username);
+    nameUserDB.blockedMembers = nameUserDB.blockedMembers.map(itm => itm.username);
+    return nameUserDB
 };
+
+// Room.createRoom = async function(roomName,username) {
+//     let Room = this;
+//     let room = {};
+//     let err = {};
+//     try {
+//         let user = await User.findOne({where:{username:username}});
+//         room = await Room.findOne({where:{name:roomName}});
+//         if(!room){
+//             room = await Room.create({name:roomName});
+//             room.members.push({});
+//             user.rooms.push(room.name);
+//             room.save();
+//             user.save();
+//             console.log('Room.createRoom room: ',Object.keys(room.__proto__));
+//             console.log('Room.createRoom user: ',Object.keys(user.__proto__));
+//             await room.addMembers(user);
+//             await user.addRooms(room,{through:{enable:true,admin:true}});
+//             return {err:null,room:room,user:user}
+//         }else{
+//             return {err:"A group named "+roomName+" already exists. Choose another group name.",room:null,user:null};
+//         }
+//     } catch (err) {
+//         console.log('createRoom err: ',err);
+//         return {err:err,room:null,user:null};
+//     }
+// };
 // //invite user to room
 // room.statics.inviteUserToRoom = async function(roomName,invited) {
 //     let Room = this;

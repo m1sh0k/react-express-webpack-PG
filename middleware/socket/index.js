@@ -242,6 +242,8 @@ module.exports = function (server) {
         }
     });
 
+
+
     io.sockets.on('connection', async function (socket) {
         //Global Chat Events
         let username = socket.request.user.username;//req username
@@ -258,6 +260,29 @@ module.exports = function (server) {
         console.log('connection globalChatUsers: ',globalChatUsers);
         //update UserData
         socket.emit('updateUserData',userDB);
+        //Update if username was changed
+        common.on('changeUserName', async function (newUserName) {
+            try{
+                console.log('changeUserName: ',newUserName);
+                let user = await User.findOne(
+                    {
+                        where:{username:newUserName},
+                        include:[
+                            {model: User,as:'contacts'},
+                            {model: User,as:'blockedContacts'},
+                        ]
+                    });
+                let refUser = await user.reformatData();
+                let conts = [...refUser.contacts,...refUser.blockedContacts];
+                console.log('changeUserName conts: ',conts);
+                for(let itm of conts) {
+                    if(globalChatUsers[itm]) socket.broadcast.to(globalChatUsers[itm].sockedId).emit('updateUserData', await aggregateUserData(itm));
+                }
+            }catch(err){
+                console.log('changeUserName err: ',err);
+                return {err:JSON.stringify(new HttpError(423, 'ChangeUserName err: ',err)),user:null};
+            }
+        });
         //move to black list
         socket.on('banUser', async function (data,cb) {
             try {
@@ -509,19 +534,25 @@ module.exports = function (server) {
         socket.on('messageForward', async function (ids,toUserName,fromUserName, cb) {
             try {
                 console.log('messageForward');
-                let mesArray = await Message.findAll({raw: true,where:{_id:{$in:ids}}});//find all mes
-                let resUser = await User.findOne({raw: true,where:{username:toUserName}});
+                let mesArray = await Message.findAll({where:{_id:{$in:ids}}});//find all mes
+                let resUser = await User.findOne(
+                    {
+                        where:{username:toUserName},
+                        include:[
+                            {model: User,as:'contacts'},
+                            {model: User,as:'blockedContacts'},
+                        ]
+                    });
+                resUser = resUser.reformatData();
+                let toUser = await User.finOne({where:{username:fromUserName}});
+                console.log('messageForward resUser: ',resUser);
+
                 if(globalChatUsers[username].blockedContacts.includes(toUserName)) return cb("You can not write to baned users!",null);
                 if(!resUser.contacts.includes(username)) return cb("User "+toUserName+" do not add you in his white list!",null);
-
-
                 for (const item of mesArray) {
-                    item.set('_id', undefined);
-                    item.user = username;
-                    item.members = [username,toUserName];
-                    item.uniqSig = setGetSig([username,toUserName]);
-                    item.status = false;
-                    item.forwardFrom = fromUserName;
+                    let mes = await Message.create({text: item.text,sig:setGetSig([username,toUserName]),date:item.date,author:item.author,forwardFrom:toUser._id});
+                    await mes.addRecipient(await User.findOne({where:{username:toUserName}}))
+                    //thing about add Recipient if it will be room message
                 }
                 console.log('messageForward mes:',mesArray);
                 await Message.insertMany(mesArray);
@@ -536,32 +567,6 @@ module.exports = function (server) {
             }
         });
         //room events
-        //setRoomMesStatus
-        socket.on('setRoomMesStatus',async function (idx,reqRoom,cb) {
-            try {
-                console.log("setRoomMesStatus: indexArr: ",idx," ,reqRoom: ",reqRoom," ,username: ",username);
-                let currentMes = await Message.findOne({raw: true,where:{_id:idx}});//get mes with id
-                //let currentMes = mes.messages.id(idx);
-                if(currentMes.user === username) return;//check if author
-                if(currentMes.status === true || currentMes.statusCheckArr.includes(username)) return cb(null);////check if user set status
-                currentMes.statusCheckArr.push(username);
-                await Message.findOneAndUpdate({_id:idx},{"statusCheckArr" : currentMes.statusCheckArr});
-                if(currentMes.statusCheckArr.length === currentMes.members.length - 1) {
-                    currentMes.status = true;
-                    currentMes.statusCheckArr = [];
-                    await Message.findOneAndUpdate({_id:idx},{"statusCheckArr" : [],"status" : true});
-                }
-                for (let name of currentMes.members) {
-                    if(globalChatUsers[name] && name !== username) {
-                        socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateMsgStatus',reqRoom,idx,currentMes.statusCheckArr.length !== 0 ? currentMes.statusCheckArr : currentMes.status);
-                    }
-                }
-                cb(null);
-            } catch (err) {
-                console.log("setRoomMesStatus err: ",err);
-                cb(err);
-            }
-        });
         //create new room
         socket.on('createRoom', async function  (roomName,dateNow,cb) {
             try {

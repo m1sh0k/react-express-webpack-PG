@@ -162,17 +162,14 @@ class UserP extends React.Component {
         xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
         xhr.send(data);
         xhr.onload =()=>  {
-            var Obj = JSON.parse(xhr.response);
-            if (xhr.readyState === xhr.DONE) {
-                if (!Obj.user) {
-                    newUsername.style.color = '#69bc37';
-                    this.setState({ buffCkName: newName });
-                    this.setState({ newNameStatus: 'is free' });
-
-                } else {
-                    newUsername.style.color = '#ca5b53';
-                    this.setState({ newNameStatus: 'is in use' });
-                }
+            //var Obj = JSON.parse(xhr.response);
+            if (xhr.status === 200) {
+                newUsername.style.color = '#69bc37';
+                this.setState({ buffCkName: newName });
+                this.setState({ newNameStatus: 'is free' });
+            } else {
+                newUsername.style.color = '#ca5b53';
+                this.setState({ newNameStatus: 'is in use' });
             }
         };
         return false;
@@ -198,7 +195,7 @@ class UserP extends React.Component {
             return; //alert('You Old passwords is not valid.');
         }
         if (!password || !confPass) {
-            this.setState({err: {message:'You forgot type passwords, try one more!'}, modalWindow:true,});
+            this.setState({err: {message:'You forgot type new passwords, try one more! If you do not want change password retype old password in field "New Password" and "Confirm New Password"'}, modalWindow:true,});
             return; //alert('You forgot type passwords, try one more.');
         }
         if (password != confPass) {

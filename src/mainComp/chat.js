@@ -1240,7 +1240,7 @@ class Chat extends React.Component {
                                                 (eUser && eStore) ? (
                                                     eStore.map((data, i) => {
                                                         return (
-                                                            (data.author === this.state.user.username || data.author === data.forwardFrom)?(
+                                                            (data.author === this.state.user.username && data.forwardFrom == null)?(
                                                                 <li key={i} className={`right ${this.state.messageLink === data._id ? 'active' :''}`} ref={data._id}>{data.text}
                                                                     <div className="messageData">
                                                                         {this.state.selectMode ?

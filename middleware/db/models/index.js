@@ -141,7 +141,7 @@ const Message = sequelize.define('message', {
         allowNull: false,
     },
     forwardFrom:{
-        type: Sequelize.INTEGER,
+        type: Sequelize.STRING,
     },
     date:{
         type: Sequelize.DATE,
@@ -433,8 +433,8 @@ Room.prototype.reformatData = async function() {
     let nameUserDB = this;
     //console.log("reformatData: ",nameUserDB);
     nameUserDB = nameUserDB.toJSON();
-    nameUserDB.members = nameUserDB.members.map(itm => itm.username);
-    nameUserDB.blockedMembers = nameUserDB.blockedMembers.map(itm => itm.username);
+    nameUserDB.members = nameUserDB.members.map(itm => itm.username)  || [];
+    nameUserDB.blockedMembers = nameUserDB.blockedMembers.map(itm => itm.username)  || [];
     return nameUserDB
 };
 

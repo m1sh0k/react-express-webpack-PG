@@ -1240,7 +1240,7 @@ class Chat extends React.Component {
                                                 (eUser && eStore) ? (
                                                     eStore.map((data, i) => {
                                                         return (
-                                                            (data.author === this.state.user.username )?(
+                                                            (data.author === this.state.user.username || data.author === data.forwardFrom)?(
                                                                 <li key={i} className={`right ${this.state.messageLink === data._id ? 'active' :''}`} ref={data._id}>{data.text}
                                                                     <div className="messageData">
                                                                         {this.state.selectMode ?
@@ -1269,7 +1269,7 @@ class Chat extends React.Component {
                                                                                        data.recipients.map((itm,i) => itm.MessageData.status === true ? <span key={i} className="messageTime">{itm.username}</span> : "")
                                                                                }
                                                                             </span>
-                                                                            {data.forwardFrom == null ? "" : " Forwarded from: " + data.forwardFrom.username }
+                                                                            {data.forwardFrom == null ? "" : " Forwarded from: " + data.forwardFrom }
                                                                         </div>
                                                                     </div>
                                                                 </li>
@@ -1277,7 +1277,9 @@ class Chat extends React.Component {
                                                                 <VisibilitySensor
                                                                     key={i+"VisibilitySensor"}
                                                                     containment={this.refs.InpUl}
-                                                                    onChange={(inView)=> inView && data.recipients.find(itm => itm.username === this.state.user.username).MessageData.status === false ? this.setAsRead(eUser.name,data._id) : ""}
+                                                                    onChange={(inView)=> inView &&
+                                                                        data.recipients.some(itm => itm.username === this.state.user.username) &&
+                                                                        data.recipients.find(itm => itm.username === this.state.user.username).MessageData.status === false ? this.setAsRead(eUser.name,data._id) : ""}
                                                                 >
                                                                     <li className={`left ${this.state.messageLink === data._id ? 'active' :''}`}  key={i} ref={data._id}
                                                                         onClick={()=>{
@@ -1309,9 +1311,10 @@ class Chat extends React.Component {
                                                                                   {data.author}
                                                                                 <span className="messageTime">{this.dateToString(data.date)}</span>
                                                                                 {
-                                                                                    data.recipients.find(itm => itm.username === this.state.user.username).MessageData.status === true ? "":" UR"
+                                                                                    data.recipients.length === 1 ? data.recipients[0].MessageData.status === true ? " R":"" :
+                                                                                        data.recipients.map((itm,i) => itm.MessageData.status === true ? <span key={i} className="messageTime">{itm.username}</span> : "")
                                                                                 }
-                                                                                {data.forwardFrom == null ? "" : " Forwarded from: " + data.forwardFrom.username }
+                                                                                {data.forwardFrom == null ? "" : " Forwarded from: " + data.forwardFrom }
                                                                             </div>
 
 

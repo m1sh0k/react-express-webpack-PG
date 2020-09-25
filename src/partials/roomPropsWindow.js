@@ -36,7 +36,7 @@ class RoomPropsWindow extends React.Component {
                         <div>
                             <p className="chat-room-members-count">{currentRoom.groupId}</p>
                             <p className="chat-room-members-count">{currentRoom.members.length}</p>
-                            <p className="chat-room-members-count">{currentRoom.blockedContacts.length} </p>
+                            <p className="chat-room-members-count">{currentRoom.blockedMembers.length} </p>
                             <p className="chat-room-members-count">{currentRoom.allMesCounter} </p>
                             <p className="chat-room-members-count">{currentRoom.msgCounter} </p>
                             <p className="chat-room-members-count">{this.dateToString(currentRoom.created_at)}</p>
@@ -49,17 +49,17 @@ class RoomPropsWindow extends React.Component {
                         {
                             currentRoom.members ?
                                 currentRoom.members.map((itm,i) =>
-                                    <p className={`chat-room-members-count ${itm.admin === true ? "admin" :""}`} key={i}><span>{itm.name}</span></p>
+                                    <p className={`chat-room-members-count ${itm.admin === true ? "admin" :""}`} key={i}><span>{itm.username}</span></p>
                                 )
                             : ""
                         }
                     </div>
                     <div className="userList black"  >
-                        {currentRoom.blockedContacts.length > 0 ?
+                        {currentRoom.blockedMembers.length > 0 ?
                         <h1 className="chat-room-name">Black list users:</h1>
                             :""}
-                        {currentRoom.blockedContacts ?
-                            currentRoom.blockedContacts.map((itm,i) => <p className='chat-room-members-count' key={i}>{itm.name}</p>) :""
+                        {currentRoom.blockedMembers ?
+                            currentRoom.blockedMembers.map((itm,i) => <p className='chat-room-members-count' key={i}>{itm.username}</p>) :""
                         }
 
                     </div>

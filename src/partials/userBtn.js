@@ -123,8 +123,8 @@ class UserBtn extends React.Component {
                         onContextMenuResponse={this.onContextMenuResponse}
                         contextMenuLocation={this.state.contextMenuLocation}
                         userList={this.props.userList}
-                        userRoomList={this.props.roomList ? itm.members.map(itm => itm.name) : ''}//.filter(name => name !== this.props.username)
-                        userBanRoomList={this.props.roomList ? itm.blockedContacts.map(itm => itm.name) : ''}
+                        userRoomList={this.props.roomList ? itm.members.map(itm => itm.username) : ''}//.filter(name => name !== this.props.username)
+                        userBanRoomList={this.props.roomList ? itm.blockedMembers.map(itm => itm.username) : ''}
                         userNRSStatus={this.props.userNRSStatus}
                     />
                     :''}

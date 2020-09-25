@@ -135,7 +135,7 @@ class Chat extends React.Component {
                 if(itmName === this.state.user.username) return;
                 let messagesStore = this.state.messagesStore;
                 if(!messagesStore[itmName]) return;
-                messagesStore[itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === itmName).MessageData.status = status;
+                messagesStore[itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === itmName).status = status;
                 this.setState({messagesStore});
             })
             .on('updateMessageStore',(username,ids)=> {
@@ -184,8 +184,9 @@ class Chat extends React.Component {
             })
             .on('messageRoom',(data)=>{
                 //messageRoom receiver
-                this.printMessage(data,data.uniqSig);
-                this.msgCounter("rooms",this.getUsersIdx("rooms",data.uniqSig));
+                console.log('messageRoom receiver: ',data);
+                this.printMessage(data,data.sig);
+                this.msgCounter("rooms",this.getUsersIdx("rooms",data.sig));
             })
             .on('typing', (username)=> {
                 //receiver
@@ -307,7 +308,7 @@ class Chat extends React.Component {
         //console.log("msgCounter current: ",current);
         let currentUserMes = this.state.messagesStore[current.name];
         if(!unreadFlag) current.allMesCounter = current.allMesCounter + 1;
-        let unReadMes = currentUserMes.filter(itm => itm.author !== this.state.user.username && itm.recipients.find(itm => itm.username === this.state.user.username).MessageData.status === false).length;
+        let unReadMes = currentUserMes.filter(itm => itm.author !== this.state.user.username && itm.recipients.find(itm => itm.username === this.state.user.username).status === false).length;
         current.msgCounter = unReadMes;
         this.setState({current});
     };
@@ -341,6 +342,7 @@ class Chat extends React.Component {
                                 err: {message: err},
                             })
                         } else {
+                            console.log("sendMessage room: ", mes);
                             this.printMessage(mes, name);
                             this.msgCounter("rooms", this.getUsersIdx("rooms", name));
                             this.setState({message: ''}, () => this.scrollToBottom(this.refs.InpUl));
@@ -840,7 +842,7 @@ class Chat extends React.Component {
                 })
             } else {
                 let messagesStore = this.state.messagesStore;
-                messagesStore[itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === this.state.user.username).MessageData.status = true;
+                messagesStore[itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === this.state.user.username).status = true;
                 this.setState({messagesStore},()=> {
                     //console.log("setAsRead DONE!");
                     this.msgCounter(this.state.arrayBlockHandlerId,this.state.messageBlockHandlerId,true)})
@@ -1179,7 +1181,7 @@ class Chat extends React.Component {
                                                         roomList={true}
                                                         userList={this.state.users.map(itm => itm.name)}
                                                         username={this.state.user.username}
-                                                        userNRSStatus={itm.members.find(itm => itm.name === this.state.user.username).enable}//user Room notification status
+                                                        userNRSStatus={itm.members.find(itm => itm.username === this.state.user.username).enable}//user Room notification status
                                                     />)
                                             }
                                         </div>
@@ -1265,8 +1267,8 @@ class Chat extends React.Component {
                                                                             {data.author}<span className="messageTime">{this.dateToString(data.date)}</span>
                                                                             <span className="messageTime">
                                                                                {
-                                                                                   data.recipients.length === 1 ? data.recipients[0].MessageData.status === true ? " R":"" :
-                                                                                       data.recipients.map((itm,i) => itm.MessageData.status === true ? <span key={i} className="messageTime">{itm.username}</span> : "")
+                                                                                   data.recipients.length === 1 ? data.recipients[0].status === true ? " R":"" :
+                                                                                       data.recipients.map((itm,i) => itm.status === true ? <span key={i} className="messageTime">{itm.username}</span> : "")
                                                                                }
                                                                             </span>
                                                                             {data.forwardFrom == null ? "" : " Forwarded from: " + data.forwardFrom }
@@ -1279,11 +1281,11 @@ class Chat extends React.Component {
                                                                     containment={this.refs.InpUl}
                                                                     onChange={(inView)=> inView &&
                                                                         data.recipients.some(itm => itm.username === this.state.user.username) &&
-                                                                        data.recipients.find(itm => itm.username === this.state.user.username).MessageData.status === false ? this.setAsRead(eUser.name,data._id) : ""}
+                                                                        data.recipients.find(itm => itm.username === this.state.user.username).status === false ? this.setAsRead(eUser.name,data._id) : ""}
                                                                 >
                                                                     <li className={`left ${this.state.messageLink === data._id ? 'active' :''}`}  key={i} ref={data._id}
                                                                         onClick={()=>{
-                                                                            data.recipients.find(itm => itm.username === this.state.user.username).MessageData.status === false  ?
+                                                                            data.recipients.find(itm => itm.username === this.state.user.username).status === false  ?
                                                                                 this.setAsRead(eUser.name,data._id) : ""
                                                                         }}
                                                                     >
@@ -1311,8 +1313,8 @@ class Chat extends React.Component {
                                                                                   {data.author}
                                                                                 <span className="messageTime">{this.dateToString(data.date)}</span>
                                                                                 {
-                                                                                    data.recipients.length === 1 ? data.recipients[0].MessageData.status === true ? " R":"" :
-                                                                                        data.recipients.map((itm,i) => itm.MessageData.status === true ? <span key={i} className="messageTime">{itm.username}</span> : "")
+                                                                                    data.recipients.length === 1 ? data.recipients[0].status === true ? "":" UR" :
+                                                                                        data.recipients.map((itm,i) => itm.status === true ? <span key={i} className="messageTime">{itm.username}</span> : "")
                                                                                 }
                                                                                 {data.forwardFrom == null ? "" : " Forwarded from: " + data.forwardFrom }
                                                                             </div>

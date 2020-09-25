@@ -90,6 +90,30 @@ var Room = sequelize.define('room', {
 }, {tableName: 'room'});
 Room.sync();
 //
+var RoomMembers = sequelize.define('RoomMembers', {
+    roomId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+    userId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+}, { timestamps: false,tableName: 'RoomMembers' });
+RoomMembers.sync();
+//
+var RoomBlockedMembers = sequelize.define('RoomBlockedMembers', {
+    roomId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+    userId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+}, { timestamps: false,tableName: 'RoomBlockedMembers' });
+RoomBlockedMembers.sync();
+//
 var UserRoom = sequelize.define('UserRoom', {
     roomId: {
         type: Sequelize.INTEGER,
@@ -112,9 +136,9 @@ var UserRoom = sequelize.define('UserRoom', {
 }, { timestamps: false,tableName: 'UserRoom' });
 UserRoom.sync();
 //
-Room.belongsToMany(User, {as: 'members', through: UserRoom});
+Room.belongsToMany(User, {as: 'members', through: RoomMembers});
 //Magic methods setMembers, addMembers, removeMembers eth..
-Room.belongsToMany(User, {as: 'blockedMembers', through: UserRoom});
+Room.belongsToMany(User, {as: 'blockedMembers', through: RoomBlockedMembers});
 //Magic methods setBlockedMembers, addBlockedMembers, removeBlockedMembers eth..
 User.belongsToMany(Room, {as:'rooms', through: UserRoom});
 //Magic methods setRooms, addRooms, removeRooms eth..
@@ -171,6 +195,17 @@ Message.belongsToMany(User, {as: 'recipients',through: MessageData});
 Message.belongsTo(User, {foreignKey:'forwardFrom'});
 Message.sync();
 //////////////////////////////////////////////////////////////////
+
+//message internal methods
+Message.prototype.reformatData = async function() {
+    let mes = this;
+    mes = mes.toJSON();
+    mes.recipients = mes.recipients.map((res)=>{
+        return {username: res.username, status:res.MessageData.status}
+    });
+    return mes
+};
+
 //message methods
 Message.messageHandler = async function (data,limit) {
     var Message = this;
@@ -193,6 +228,7 @@ Message.messageHandler = async function (data,limit) {
                     through: {attributes: ['status']}
                 }
             });
+            mes = await mes.reformatData();
             return {err:null,mes:mes};//return current message
         }else {//read data and return log
             let mes = await Message.findAll({
@@ -208,7 +244,13 @@ Message.messageHandler = async function (data,limit) {
                     through: {attributes: ['status']}
                 }
             });
-            mes.sort((a,b) => a.createdAt > b.createdAt);
+
+            let promisesMes = mes.map(itm => itm.reformatData());
+            mes = await Promise.all(promisesMes);
+
+            //console.log('Message.reformatData DONE!!: ',mes);
+            mes.sort((a,b) => a.createdAt - b.createdAt);
+
             return {err:null,mes: mes};
         }
     } catch(err) {
@@ -216,6 +258,8 @@ Message.messageHandler = async function (data,limit) {
         return {err:err,mes:null};
     }
 };
+
+
 //////////////////////////////////////////////////////////////////
 //User internal methods
 User.prototype.encryptPassword = function(password) {
@@ -431,62 +475,92 @@ User.changeData = async function(paramAuth) {
 //Room internal methods
 Room.prototype.reformatData = async function() {
     let nameUserDB = this;
-    //console.log("reformatData: ",nameUserDB);
     nameUserDB = nameUserDB.toJSON();
-    nameUserDB.members = nameUserDB.members.map(itm => itm.username)  || [];
+    //console.log("reformatData: ",nameUserDB);
+    nameUserDB.members = nameUserDB.members.map((itm) => {
+            if(itm.rooms){
+                return {username:itm.username, enable:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.enable, admin:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.admin}
+            } else return itm.username
+        })  || [];
     nameUserDB.blockedMembers = nameUserDB.blockedMembers.map(itm => itm.username)  || [];
     return nameUserDB
 };
-
-// Room.createRoom = async function(roomName,username) {
-//     let Room = this;
-//     let room = {};
-//     let err = {};
-//     try {
-//         let user = await User.findOne({where:{username:username}});
-//         room = await Room.findOne({where:{name:roomName}});
-//         if(!room){
-//             room = await Room.create({name:roomName});
-//             room.members.push({});
-//             user.rooms.push(room.name);
-//             room.save();
-//             user.save();
-//             console.log('Room.createRoom room: ',Object.keys(room.__proto__));
-//             console.log('Room.createRoom user: ',Object.keys(user.__proto__));
-//             await room.addMembers(user);
-//             await user.addRooms(room,{through:{enable:true,admin:true}});
-//             return {err:null,room:room,user:user}
-//         }else{
-//             return {err:"A group named "+roomName+" already exists. Choose another group name.",room:null,user:null};
-//         }
-//     } catch (err) {
-//         console.log('createRoom err: ',err);
-//         return {err:err,room:null,user:null};
-//     }
-// };
+//
+Room.createRoom = async function(roomName,username) {
+    let Room = this;
+    let room = {};
+    let err = {};
+    try {
+        let user = await User.findOne({where:{username:username}});
+        room = await Room.findOne({where:{name:roomName}});
+        if(!room){
+            room = await Room.create({name:roomName});
+            console.log('Room.createRoom room: ',Object.keys(room.__proto__));
+            console.log('Room.createRoom user: ',Object.keys(user.__proto__));
+            await room.addMember(user);
+            await user.addRoom(room,{through:{enable:true,admin:true}});
+            room = await Room.findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
+            return {err:null,room:room,user:user}
+        }else{
+            return {err:"A group named "+roomName+" already exists. Choose another group name.",room:null,user:null};
+        }
+    } catch (err) {
+        console.log('createRoom err: ',err);
+        return {err:err,room:null,user:null};
+    }
+};
 // //invite user to room
-// room.statics.inviteUserToRoom = async function(roomName,invited) {
-//     let Room = this;
-//     let err = {};
-//     try {
-//         let user = await User.findOne({username:invited});
-//         let room = await Room.findOne({name:roomName});
-//         let mes = await Message.findOne({uniqSig:roomName});
-//         if(room.members.some(itm => itm.name === invited)) return {err:"User "+invited+" is already included in the group.",room:null,user:null};
-//         if(room.blockedContacts.some(itm => itm.name === invited)) return {err:"User "+invited+" is included in the block list.",room:null,user:null};
-//         if(user.blockedContacts.includes(roomName)) return {err:"A group named "+roomName+" included in block list.",room:null,user:null};
-//         user.rooms.push(roomName);
-//         room.members.push({name:invited,enable:true,admin:false});
-//         if(!mes.members.includes(invited)) mes.members.push(invited);
-//         await user.save();
-//         await room.save();
-//         await mes.save();
-//         return {err:null,room:room,user:user};
-//     } catch (err) {
-//         console.log('inviteUserToRoom err: ',err);
-//         return {err:err,room:null,user:null};
-//     }
-// };
+Room.inviteUserToRoom = async function(roomName,invited) {
+    let Room = this;
+    let err = {};
+    try {
+        let userArray = [];
+
+        let room = await Room.findOne({
+            where:{name:roomName},
+            include:[
+                {model: User,as:'members'},
+                {model: User,as:'blockedMembers'}
+            ]
+        });
+
+        if(Array.isArray(invited)) {
+            for(let itm of invited) {
+                let user = await User.find({where:{username:itm}});
+                let userData = user.reformatData();
+                if(userData.blockedContacts.includes(roomName)) continue;//return {err:"User "+invited+" include group named "+roomName+" in block list.",room:null,user:null};
+                await user.addRoom(room,{through:{enable:true,admin:false}});
+                userArray.push(user);
+            }
+            await room.addMembers(userArray);
+            room = await findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
+            return {err:null,room:room,user:userArray};
+        } else {
+            let user = await User.findOne({
+                where:{username:invited},
+                include: [
+                    {model: User,as:'contacts'},
+                    {model: User,as:'blockedContacts'},
+                ],
+            });
+            let userData = await user.reformatData();
+            let roomData = await room.reformatData();
+            console.log('inviteUserToRoom userData: ',userData);
+            console.log('inviteUserToRoom roomData: ',roomData);
+            if(roomData.members.some(itm => itm.username === invited)) return {err:"User "+invited+" is already included in the group.",room:null,user:null};
+            if(roomData.blockedMembers.some(itm => itm.username === invited)) return {err:"User "+invited+" is included in the block list.",room:null,user:null};
+            if(userData.blockedContacts.includes(roomName)) return {err:"User "+invited+" include group named "+roomName+" in block list.",room:null,user:null};
+            await room.addMember(user);
+            await user.addRoom(room,{through:{enable:true,admin:false}});
+            room = await Room.findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
+            user = await User.findOne({where:{username:invited},include:{model:Room,as:'rooms'}});
+            return {err:null,room:room,user:user};
+        }
+    } catch (err) {
+        console.log('inviteUserToRoom err: ',err);
+        return {err:err,room:null,user:null};
+    }
+};
 // //block user in room
 // room.statics.blockUserInRoom = async function(roomName,adminRoom,blocked) {
 //     let Room = this;

@@ -35,10 +35,6 @@ function setGetSig(arr) {
     return arr[0] + '_' + arr[1];
 }
 
-function getRoomMembers(room) {
-    return room.members.map(itm => itm.name);
-}
-
 async function loadUser(session) {
     try {
         console.log('retrieving user: ', session.user);
@@ -54,9 +50,6 @@ async function loadUser(session) {
         return {err:err,user:null};
     }
 }
-
-
-
 
 function findClientsSocket(roomId, namespace, io) {
     var res = []
@@ -97,7 +90,7 @@ async function aggregateUserData(username) {
         });
 
         let userData = await data.reformatData();
-        //console.log('test agrReFormatData: ', userData);
+        console.log('test agrReFormatData: ', userData);
         let contacts = userData.contacts || [];
         let blockedContacts = userData.blockedContacts || [];
         let rooms = userData.rooms|| [];
@@ -116,8 +109,8 @@ async function aggregateUserData(username) {
             let banned = nameUserDB.blockedContacts.includes(username);
             let authorized =  !(!nameUserDB.contacts.includes(username) && !nameUserDB.blockedContacts.includes(username));
             let {err,mes} = await Message.messageHandler({sig:setGetSig([username,name])});
-            console.log('Aggr mes.map: ',mes.filter(itm => !itm.recipients[0].MessageData).length);
-            let col = mes.filter(itm => itm.author !== username && itm.recipients[0].MessageData.status === false).length;
+
+            let col = mes.filter(itm => itm.author !== username && itm.recipients[0].status === false).length;
             return contacts[i] = {name:name,  msgCounter :col, allMesCounter: mes.length, typing:false, onLine:status, banned:banned, authorized:authorized, created_at:nameUserDB.created, userId:nameUserDB._id}
         });
         let bL = blockedContacts.map(async (name,i) =>{
@@ -133,26 +126,28 @@ async function aggregateUserData(username) {
             let banned = nameUserDB.blockedContacts.includes(username);
             let authorized =  !(!nameUserDB.contacts.includes(username) && !nameUserDB.blockedContacts.includes(username));
             let {err,mes} = await Message.messageHandler({sig:setGetSig([username,name])});
-            let col = mes.filter(itm => itm.author !== username && itm.recipients[0].MessageData.status === false).length;
+            let col = mes.filter(itm => itm.author !== username && itm.recipients[0].status === false).length;
             return blockedContacts[i] = {name:name, msgCounter :col, allMesCounter: mes.length,typing:false, onLine:status, banned:banned, authorized:authorized, created_at:nameUserDB.created, userId:nameUserDB._id}
         });
         let rL = rooms.map(async (name,i) =>{
             let data = await Room.findOne({
                 where:{name:name},
                 include: [
-                    {model: User,as:'members'},
-                    {model: User,as:'blockedMembers'},
+                    {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+                    {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
                 ],
             });
-            // room = room.toJSON();
+            let consoleData = data.toJSON();
+            console.log('aggDataRooms: ',consoleData.members[0].rooms);
             let room = await data.reformatData();
+
             let {err,mes} = await Message.messageHandler({sig:name});
             let col = 0;
             for(let itm of mes) {
-                if (itm.user === username || itm.status) continue;
-                if(!(await asyncIncludes(itm.statusCheckArr, username))) col +=1;
+                if (itm.author === username) continue;
+                if(itm.recipients.find(rcpnts => rcpnts.username === username).status === false) col +=1;
             }
-            return rooms[i] = {name:name, msgCounter :col, allMesCounter: mes.length,members:room.members,blockedContacts:room.blockedMembers,created_at:room.created_at, groupId:room._id}
+            return rooms[i] = {name:name, msgCounter:col, allMesCounter:mes.length, members:room.members, blockedMembers:room.blockedMembers, created_at:room.created_at, groupId:room._id}
         });
         userData.contacts = await Promise.all(wL);
         userData.blockedContacts = await Promise.all(bL);
@@ -537,7 +532,6 @@ module.exports = function (server) {
                 console.log('messageForward ids: ',ids,', toUserName: ',toUserName,', from: ',from);
                 if(toUserName === from) return cb("You can not forward to same user!",null);
                 let mesArray = await Message.findAll({where:{_id:{[Op.in]:ids}}});//find all mes
-                console.log('messageForward mesArray: ',mesArray);
                 let toUser = await User.findOne(
                     {where:{username:toUserName},
                         include:[
@@ -567,10 +561,6 @@ module.exports = function (server) {
 
                     roomMembers = fromRoom.members
                 }
-
-                console.log('messageForward toUser: ',toUser);
-                console.log('messageForward fromRoom: ',fromRoom);
-
                 let forwardedMesArr =  [];
                 for (const item of mesArray) {
                     let mes = await Message.create({
@@ -580,16 +570,10 @@ module.exports = function (server) {
                         author:item.author,
                         forwardFrom:fromUser ? fromUser.username : fromRoom.name
                     });
-                    console.log('messageForward mes: ',mes);
-                    console.log('messageForward magicMethods: ',Object.keys(mes.__proto__));
-                    //console.log('messageForward mes._id: ',mes._id);
                     forwardedMesArr.push(mes._id);
-                    console.log('messageForward mes._id: ',mes._id);
                     if(fromUser) await mes.addRecipient(toUser);
                     if(fromRoom) await mes.addRecipients(roomMembers);
-
                 }
-                console.log('messageForwarded forwardedMesArr: ',forwardedMesArr);
                 mesArray = await Message.findAll({
                     where:{_id:{[Op.in]:forwardedMesArr}},
                     include:{
@@ -598,9 +582,7 @@ module.exports = function (server) {
                         attributes: ['username'],
                         through: {attributes: ['status']}
                     }
-                });//find all new forwarded mes
-                console.log('messageForwarded mes: ',mesArray);
-
+                });
                 if(!globalChatUsers[toUserName]) return cb(null,mesArray);
                 let sid = globalChatUsers[toUserName].sockedId;
                 socket.broadcast.to(sid).emit('messageForward', mesArray,username);
@@ -616,10 +598,11 @@ module.exports = function (server) {
             try {
                 console.log('createRoom: ',roomName);
                 let {err,room,user} = await Room.createRoom(roomName,username);
+                let roomData = await room.reformatData();
                 if(err) {
                     return cb(err,null)
                 } else {
-                    let {err,mes} = await Message.messageHandler({sig:roomName,members:getRoomMembers(room),message:{ author: username, text: username+" created a new group "+roomName+".", status: false, date: dateNow}});
+                    let {err,mes} = await Message.messageHandler({sig:roomName,members:roomData.members,message:{ author: username, text: username+" created a new group "+roomName+".", status: false, date: dateNow}});
                     return cb(null,await aggregateUserData(username))
                 }
             } catch (err) {
@@ -632,15 +615,17 @@ module.exports = function (server) {
             try {
                 console.log('inviteUserToRoom: ',roomName);
                 let {err,room,user} = await Room.inviteUserToRoom(roomName,invitedUser);
+                room = await room.reformatData();
+                let roomMembers = room.members.map(itm => itm.username);
                 if(err) {
                     return cb(err,null,null)
                 } else {
-                    let {err,mes} = await Message.messageHandler({sig:roomName,members:getRoomMembers(room),message:{ author: username, text: username+" added new user "+invitedUser+".", status: false, date: dateNow}});
+                    let {err,mes} = await Message.messageHandler({sig:roomName,members:roomMembers, message:{ author: username, text: username+" added new user "+invitedUser+".", status: false, date: dateNow}});
                     if(globalChatUsers[invitedUser]) socket.broadcast.to(globalChatUsers[invitedUser].sockedId).emit('updateUserData',await aggregateUserData(invitedUser));
-                    for (let itm of room.members) {
-                        if(globalChatUsers[itm.name]) {
-                            socket.broadcast.to(globalChatUsers[itm.name].sockedId).emit('updateUserData',await aggregateUserData(itm.name));
-                            socket.broadcast.to(globalChatUsers[itm.name].sockedId).emit('messageRoom',mes);
+                    for (let itm of roomMembers) {
+                        if(globalChatUsers[itm.username]) {
+                            socket.broadcast.to(globalChatUsers[itm.username].sockedId).emit('updateUserData',await aggregateUserData(itm.name));
+                            socket.broadcast.to(globalChatUsers[itm.username].sockedId).emit('messageRoom',mes);
                         }
                     }
                     cb(null,await aggregateUserData(username),mes)
@@ -679,24 +664,21 @@ module.exports = function (server) {
         socket.on('getRoomLog', async function  (roomName,reqMesCountCb,reqMesId,cb) {
             try {
                 console.log("getRoomLog: ",roomName);
-                let room = await Room.findOne({where:{name:roomName}});
+                let room = await Room.findOne({
+                    where:{name:roomName},
+                    include: [
+                        {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+                        {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+                    ],
+                });
+                room = await room.reformatData();
+                console.log("getRoomLog room: ",room);
                 if(!room) return cb("Error Group do not exist!",null);
-                if(room.blockedContacts.some(itm => itm.name === username)) return cb("You have been included in the block list. Message history is no longer available to you.",null);
-                if(!room.members.some(itm => itm.name === username)) return cb("You are not a member of the group.",null);
-                let {err,mes} = await Message.messageHandler({sig:roomName});
+                if(room.blockedMembers.some(itm => itm.username === username)) return cb("You have been included in the block list. Message history is no longer available to you.",null);
+                if(!room.members.some(itm => itm.username === username)) return cb("You are not a member of the group.",null);
+                let {err,mes} = await Message.messageHandler({sig:roomName},reqMesCountCb);
                 if(err) return cb(err,null);
-                let cutMes;
-                if(reqMesCountCb) {
-                    let beginInx = mes.messages.length - reqMesCountCb < 0 ? 0 : mes.messages.length - reqMesCountCb;
-                    cutMes = mes.messages.slice(beginInx)
-                } else {
-                    if(reqMesId) {
-                        let getInx = mes.messages.findIndex(itm => itm._id == reqMesId);
-                        console.log(" ,reqMesId: ",reqMesId,", getInx: ",getInx);
-                        cutMes = mes.messages.slice(getInx);
-                    }
-                }
-                return cb(null,cutMes !== undefined ? cutMes : mes.messages);
+                return cb(null,mes);
             } catch (err) {
                 console.log("getRoomLog err: ",err);
                 cb(err,null)
@@ -708,16 +690,21 @@ module.exports = function (server) {
                 console.log('messageRoom text: ',text, 'roomName: ',roomName, 'dateNow: ',dateNow);
                 if (text.length === 0) return;
                 if (text.length >= 500) return cb("To long message.",null);
-                let room = await Room.findOne({where:{name:roomName}});
-
-                if(!room.members.some(itm => itm.name === username)) return cb("You are not a member of the group.",null);
-                if(room.blockedContacts.some(itm => itm.name === username)) return cb("You have been included in the block list. Send messages to you is no longer available.",null);
-                let {err,mes} = await Message.messageHandler({sig:roomName,members:getRoomMembers(room),message:{ author: username, text: text, status: false, date: dateNow}});
-                //mes['room'] = mes['uniqSig'] && delete mes['uniqSig'];//rename key uniqSig to room.
-                let idx = mes._id;
-                room.members.forEach(itm =>{
-                    if(globalChatUsers[itm.name] && itm.enable) socket.broadcast.to(globalChatUsers[itm.name].sockedId).emit('messageRoom',mes);
+                let room = await Room.findOne({
+                    where:{name:roomName},
+                    include: [
+                        {model: User,as:'members'},
+                        {model: User,as:'blockedMembers'},
+                    ],
                 });
+                room = await room.reformatData();
+                console.log('messageRoom room: ',room);
+                if(!room.members.includes(username)) return cb("You are not a member of the group.",null);
+                if(room.blockedMembers.includes(username)) return cb("You have been included in the block list. Send messages to you is no longer available.",null);
+                let {err,mes} = await Message.messageHandler({sig:roomName,members:room.members, message:{ author: username, text: text, status: false, date: dateNow}});
+                for(let name of room.members) {
+                    if(globalChatUsers[name] && name !== username) socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageRoom',mes);
+                }
                 cb(null,mes);
             } catch (err) {
                 console.log("messageRoom err: ",err);

@@ -1274,7 +1274,8 @@ class Chat extends React.Component {
                                                                             <span className="messageTime">
                                                                                {
                                                                                    data.recipients.length === 1 ? data.recipients[0].status === true ? " R":"" :
-                                                                                       data.recipients.map((itm,i) => itm.status === true ? <span key={i} className="messageTime">{itm.username}</span> : "")
+                                                                                       data.recipients.length === data.recipients.filter(itm => itm.status === true).length ? " R" :
+                                                                                           data.recipients.map((itm,i) => itm.status === true ? <span key={i} className="messageTime">{itm.username}</span> : "")
                                                                                }
                                                                             </span>
                                                                             {data.forwardFrom == null ? "" : " Forwarded from: " + data.forwardFrom }
@@ -1320,7 +1321,8 @@ class Chat extends React.Component {
                                                                                 <span className="messageTime">{this.dateToString(data.date)}</span>
                                                                                 {
                                                                                     data.recipients.length === 1 ? data.recipients[0].status === true ? "":" UR" :
-                                                                                        data.recipients.map((itm,i) => itm.status === true ? <span key={i} className="messageTime">{itm.username}</span> : "")
+                                                                                        data.recipients.length === data.recipients.filter(itm => itm.status === true).length ? " R" :
+                                                                                            data.recipients.map((itm,i) => itm.status === true ? <span key={i} className="messageTime">{itm.username}</span> : "")
                                                                                 }
                                                                                 {data.forwardFrom == null ? "" : " Forwarded from: " + data.forwardFrom }
                                                                             </div>

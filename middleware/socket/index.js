@@ -137,17 +137,11 @@ async function aggregateUserData(username) {
                     {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
                 ],
             });
-            let consoleData = data.toJSON();
-            console.log('aggDataRooms: ',consoleData.members[0].rooms);
             let room = await data.reformatData();
-
             let {err,mes} = await Message.messageHandler({sig:name});
-            let col = 0;
-            for(let itm of mes) {
-                if (itm.author === username) continue;
-                if(itm.recipients.find(rcpnts => rcpnts.username === username).status === false) col +=1;
-            }
-            return rooms[i] = {name:name, msgCounter:col, allMesCounter:mes.length, members:room.members, blockedMembers:room.blockedMembers, created_at:room.created_at, groupId:room._id}
+            let mesFltr = mes.filter(itm => itm.author !== username && itm.recipients.some(itm => itm.username === username) && !itm.recipients.find(itm => itm.username === username).status);
+            console.log('aggDataRooms mesFltr: ',mesFltr.length);
+            return rooms[i] = {name:name, msgCounter:mesFltr.length, allMesCounter:mes.length, members:room.members, blockedMembers:room.blockedMembers, created_at:room.created_at, groupId:room._id}
         });
         userData.contacts = await Promise.all(wL);
         userData.blockedContacts = await Promise.all(bL);
@@ -440,7 +434,14 @@ module.exports = function (server) {
         socket.on('setMesStatus',async function (idx,reqUsername,cb) {
             try {
                 console.log("setMesStatus: indexArr: ",idx," ,reqUsername: ",reqUsername);
-                let user = await User.findOne({where:{username:username}});
+                let user = await User.findOne({where:{username:username}});//set user message status
+                let reqUser = await User.findOne({where:{username:reqUsername}});//set room message status
+                let room;
+                if(!reqUser) {
+                    room = await Room.findOne({where:{name:reqUsername},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
+                    room = await room.reformatData();
+                    console.log("setMesStatus: room._id: ",room._id);
+                }
                 console.log("setMesStatus: user._id: ",user._id);
                 await MessageData.update(
                     {status: true},
@@ -449,7 +450,13 @@ module.exports = function (server) {
                             userId:user._id
                         }
                     });
-                if(globalChatUsers[reqUsername]) socket.broadcast.to(globalChatUsers[reqUsername].sockedId).emit('updateMsgStatus',username,idx,true);
+                if(reqUser) {
+                    if(globalChatUsers[reqUsername]) socket.broadcast.to(globalChatUsers[reqUsername].sockedId).emit('updateMsgStatus',username,idx,null);
+                } else {
+                    for(let name of room.members) {
+                        if(globalChatUsers[name] && name !== username) socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateMsgStatus',reqUsername,idx,username);
+                    }
+                }
                 cb(null);
             } catch (err) {
                 console.log("setMesStatus err: ",err);
@@ -616,16 +623,16 @@ module.exports = function (server) {
                 console.log('inviteUserToRoom: ',roomName);
                 let {err,room,user} = await Room.inviteUserToRoom(roomName,invitedUser);
                 room = await room.reformatData();
-                let roomMembers = room.members.map(itm => itm.username);
+                console.log('inviteUserToRoom room: ',room);
                 if(err) {
                     return cb(err,null,null)
                 } else {
-                    let {err,mes} = await Message.messageHandler({sig:roomName,members:roomMembers, message:{ author: username, text: username+" added new user "+invitedUser+".", status: false, date: dateNow}});
-                    if(globalChatUsers[invitedUser]) socket.broadcast.to(globalChatUsers[invitedUser].sockedId).emit('updateUserData',await aggregateUserData(invitedUser));
-                    for (let itm of roomMembers) {
-                        if(globalChatUsers[itm.username]) {
-                            socket.broadcast.to(globalChatUsers[itm.username].sockedId).emit('updateUserData',await aggregateUserData(itm.name));
-                            socket.broadcast.to(globalChatUsers[itm.username].sockedId).emit('messageRoom',mes);
+                    let {err,mes} = await Message.messageHandler({sig:roomName,members:room.members, message:{ author: username, text: username+" added new user "+invitedUser+".", status: false, date: dateNow}});
+                    //if(globalChatUsers[invitedUser]) socket.broadcast.to(globalChatUsers[invitedUser].sockedId).emit('updateUserData',await aggregateUserData(invitedUser));
+                    for (let name of room.members) {
+                        if(globalChatUsers[name] && name !== username) {
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateUserData',await aggregateUserData(name));
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageRoom',mes);
                         }
                     }
                     cb(null,await aggregateUserData(username),mes)

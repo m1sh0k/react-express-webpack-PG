@@ -247,10 +247,7 @@ Message.messageHandler = async function (data,limit) {
 
             let promisesMes = mes.map(itm => itm.reformatData());
             mes = await Promise.all(promisesMes);
-
-            //console.log('Message.reformatData DONE!!: ',mes);
             mes.sort((a,b) => a.createdAt - b.createdAt);
-
             return {err:null,mes: mes};
         }
     } catch(err) {
@@ -547,8 +544,8 @@ Room.inviteUserToRoom = async function(roomName,invited) {
             let roomData = await room.reformatData();
             console.log('inviteUserToRoom userData: ',userData);
             console.log('inviteUserToRoom roomData: ',roomData);
-            if(roomData.members.some(itm => itm.username === invited)) return {err:"User "+invited+" is already included in the group.",room:null,user:null};
-            if(roomData.blockedMembers.some(itm => itm.username === invited)) return {err:"User "+invited+" is included in the block list.",room:null,user:null};
+            if(roomData.members.includes(invited)) return {err:"User "+invited+" is already included in the group.",room:null,user:null};
+            if(roomData.blockedMembers.includes(invited)) return {err:"User "+invited+" is included in the block list.",room:null,user:null};
             if(userData.blockedContacts.includes(roomName)) return {err:"User "+invited+" include group named "+roomName+" in block list.",room:null,user:null};
             await room.addMember(user);
             await user.addRoom(room,{through:{enable:true,admin:false}});

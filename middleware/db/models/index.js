@@ -622,36 +622,39 @@ Room.inviteUserToRoom = async function(roomName,invited) {
 //     }
 // };
 // //leave  room
-// room.statics.leaveRoom = async function(roomName,name) {
-//     let Room = this;
-//     let err = {};
-//     try {
-//         let user = await User.findOne({username:name});
-//         let room = await Room.findOne({name:roomName});
-//         //if(room.members.find(itm => itm.name === name).admin === true) return {err:"You can not leave this group. You are admin.",room:null,user:null};
-//         let filterUserRooms = user.rooms.filter(itm => itm !== roomName);
-//         let filterMemberRoom = room.members.filter(itm => itm.name !== name);
-//         console.log("filterMemberRoom: ",filterMemberRoom);
-//         if(filterMemberRoom.length === 0) {
-//             //Delete room protocol. if no one user left.
-//             await Room.deleteOne({name:roomName});
-//             await Message.deleteOne({uniqSig:roomName});
-//             user.rooms = filterUserRooms;
-//             await user.save();
-//             await room.save();
-//             console.log("Delete room protocol successful done");
-//             return {err:null,room:null,user:user};
-//         }
-//         user.rooms = filterUserRooms;
-//         room.members = filterMemberRoom;
-//         await user.save();
-//         await room.save();
-//         return {err:null,room:room,user:user};
-//     } catch (err) {
-//         console.log('leaveRoom err: ',err);
-//         return {err:err,room:null,user:user};
-//     }
-// };
+Room.leaveRoom = async function(roomName,name) {
+    let Room = this;
+    let err = {};
+    try {
+        let user = await User.findOne({where:{username:name}});
+        let room = await Room.findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
+        let roomData = room.reformatData();
+        //if(roomData.members.find(itm => itm.name === name).admin === true) return {err:"You can not leave this group. You are admin.",room:null,user:null};
+        await user.removeRoom(room);
+        await room.removeMember(user);
+        room = await Room.findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
+        roomData = await room.reformatData();
+        console.log('Room.leaveRoom room:',roomData);
+        if(roomData.members.length === 0) {
+            //Delete room protocol. if no one user left.
+            for(let itm of roomData.blockedMembers) {
+                let user = await User.findOne({where:{username:name}});
+                await user.removeRoom(room)
+            }
+            let mes = await Message.findAll({where:{sig:roomName}});
+            let mesArr = mes.map(itm => itm._id);
+            await room.setBlockedMembers([]);
+            await Room.destroy({where: {_id: room._id}});
+            await Message.destroy({where:{[Op.in]:mesArr}});
+            console.log("Delete room protocol successful done");
+            return {err:null,room:null,user:user};
+        }
+        return {err:null,room:roomData,user:user};
+    } catch (err) {
+        console.log('leaveRoom err: ',err);
+        return {err:err,room:null,user:user};
+    }
+};
 //delete  room
 /*room.statics.deleteRoom = async function(roomName,name) {
     let Room = this;

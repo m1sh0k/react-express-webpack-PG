@@ -23,7 +23,7 @@ class OnContextMenu extends React.Component {
         const OnEnterUserList =()=>{
             return (
                 <ul className="userInvite"  >
-                    {this.props.userList.map((name,i) => <li className='dropDownBtn' key={i} onClick={()=>{this.props.onContextMenuResponse("inviteUser",name)}}>{name}</li>)}
+                    {this.props.userList.filter(name => !this.props.userRoomList.some(itm => itm === name)).map((name,i) => <li className='dropDownBtn' key={i} onClick={()=>{this.props.onContextMenuResponse("inviteUser",name)}}>{name}</li>)}
                 </ul>
             )
         };

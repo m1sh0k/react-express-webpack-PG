@@ -653,11 +653,11 @@ module.exports = function (server) {
                     return cb(err,null)
                 }
                 else {
-                    let {err,mes} = await Message.messageHandler({sig:roomName,members:getRoomMembers(room),message:{ author: username, text: username+" left the group.", status: false, date: dateNow}});
-                    for (let itm of room.members) {
-                        if(globalChatUsers[itm.name]) {
-                            socket.broadcast.to(globalChatUsers[itm.name].sockedId).emit('updateUserData',await aggregateUserData(itm.name));
-                            socket.broadcast.to(globalChatUsers[itm.name].sockedId).emit('messageRoom',mes);
+                    let {err,mes} = await Message.messageHandler({sig:roomName,members:room.members,message:{ author: username, text: username+" left the group.", status: false, date: dateNow}});
+                    for (let name of room.members) {
+                        if(globalChatUsers[name]) {
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateUserData',await aggregateUserData(name));
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageRoom',mes);
                         }
                     }
                     cb(null,await aggregateUserData(username))

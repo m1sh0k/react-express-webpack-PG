@@ -838,6 +838,7 @@ class Chat extends React.Component {
             this.setState({scrollTopMax: e.target.scrollTopMax},()=>this.getLog(array,name,msgCount+10));
         }
     };
+
     setAsRead = (itmName,idx)=>{
         console.log("setAsRead itmName: ",itmName," ,idx: ",idx);
         this.socket.emit('setMesStatus',idx,itmName,(err)=>{
@@ -904,9 +905,6 @@ class Chat extends React.Component {
             case "Delete Selected":
                 //console.log("onContextMenuBtnResponse Delete Message: currentUser: ",currentUser,',','selectModMsgList: ',this.state.selectModMsgList);
                 //this.state.arrayBlockHandlerId ? name : [name,this.state.user.username]
-
-
-
                 this.socket.emit('deleteMessages',currentUser,this.state.selectModMsgList, (err)=>{
                     if(err) {
                         this.setState({

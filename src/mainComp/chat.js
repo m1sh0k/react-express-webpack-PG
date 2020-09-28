@@ -129,13 +129,16 @@ class Chat extends React.Component {
                     rooms:userData.rooms,
                 });
             })
-            .on('updateMsgStatus',(itmName,idx,status)=>{
-                console.log("updateMsgData itmName: ",itmName," ,id: ",idx," ,status: ",status);
-                if(!itmName || !idx || !status) return;
+            .on('updateMsgStatus',(itmName,idx,userName)=>{//userName for room set status
+                console.log("updateMsgData itmName: ",itmName," ,id: ",idx," ,userName: ",userName);
+                if(!itmName || !idx) return;
                 if(itmName === this.state.user.username) return;
                 let messagesStore = this.state.messagesStore;
                 if(!messagesStore[itmName]) return;
-                messagesStore[itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === itmName).status = status;
+
+                if(userName) {
+                    messagesStore[itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === userName).status = true;
+                } else messagesStore[itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === itmName).status = true;
                 this.setState({messagesStore});
             })
             .on('updateMessageStore',(username,ids)=> {
@@ -308,7 +311,10 @@ class Chat extends React.Component {
         //console.log("msgCounter current: ",current);
         let currentUserMes = this.state.messagesStore[current.name];
         if(!unreadFlag) current.allMesCounter = current.allMesCounter + 1;
-        let unReadMes = currentUserMes.filter(itm => itm.author !== this.state.user.username && itm.recipients.find(itm => itm.username === this.state.user.username).status === false).length;
+        let unReadMes = currentUserMes.filter(itm => itm.author !== this.state.user.username &&
+                            itm.recipients.some(itm => itm.username === this.state.user.username) &&
+                            !itm.recipients.find(itm => itm.username === this.state.user.username).status).length;
+        //let unReadMes = currentUserMes.filter(itm => itm.author !== this.state.user.username && itm.recipients.find(itm => itm.username === this.state.user.username).status === false).length;
         current.msgCounter = unReadMes;
         this.setState({current});
     };

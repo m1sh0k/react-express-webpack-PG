@@ -215,6 +215,7 @@ Message.messageHandler = async function (data,limit) {
     console.log('DB messageHandler: ',data);
     try {
         if(data.message) {//write data
+            if(!data.message.author || !data.message.date || !data.sig || !data.message.text) return {err:"Create Message. Not full request",mes:null};
             let mes = await Message.create({text: data.message.text,sig:data.sig,date:data.message.date,author:data.message.author});
             for (let name of data.members) {
                 if(name !== data.message.author) await mes.addRecipient(await User.findOne({where:{username:name}}))
@@ -479,7 +480,11 @@ Room.prototype.reformatData = async function() {
                 return {username:itm.username, enable:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.enable, admin:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.admin}
             } else return itm.username
         })  || [];
-    nameUserDB.blockedMembers = nameUserDB.blockedMembers.map(itm => itm.username)  || [];
+    nameUserDB.blockedMembers = nameUserDB.blockedMembers.map((itm) => {
+            if(itm.rooms){
+                return {username:itm.username, enable:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.enable, admin:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.admin}
+            } else return itm.username
+        })  || [];
     return nameUserDB
 };
 //
@@ -492,11 +497,13 @@ Room.createRoom = async function(roomName,username) {
         room = await Room.findOne({where:{name:roomName}});
         if(!room){
             room = await Room.create({name:roomName});
-            console.log('Room.createRoom room: ',Object.keys(room.__proto__));
-            console.log('Room.createRoom user: ',Object.keys(user.__proto__));
+            //console.log('Room.createRoom room: ',Object.keys(room.__proto__));
+            //console.log('Room.createRoom user: ',Object.keys(user.__proto__));
             await room.addMember(user);
             await user.addRoom(room,{through:{enable:true,admin:true}});
-            room = await Room.findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
+            await room.reload();
+            await user.reload();
+            //room = await Room.findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
             return {err:null,room:room,user:user}
         }else{
             return {err:"A group named "+roomName+" already exists. Choose another group name.",room:null,user:null};
@@ -530,7 +537,8 @@ Room.inviteUserToRoom = async function(roomName,invited) {
                 userArray.push(user);
             }
             await room.addMembers(userArray);
-            room = await findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
+            await room.reload();
+            //room = await findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
             return {err:null,room:room,user:userArray};
         } else {
             let user = await User.findOne({
@@ -549,8 +557,10 @@ Room.inviteUserToRoom = async function(roomName,invited) {
             if(userData.blockedContacts.includes(roomName)) return {err:"User "+invited+" include group named "+roomName+" in block list.",room:null,user:null};
             await room.addMember(user);
             await user.addRoom(room,{through:{enable:true,admin:false}});
-            room = await Room.findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
-            user = await User.findOne({where:{username:invited},include:{model:Room,as:'rooms'}});
+            await room.reload();
+            await user.reload();
+            //room = await Room.findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
+            //user = await User.findOne({where:{username:invited},include:{model:Room,as:'rooms'}});
             return {err:null,room:room,user:user};
         }
     } catch (err) {
@@ -558,70 +568,7 @@ Room.inviteUserToRoom = async function(roomName,invited) {
         return {err:err,room:null,user:null};
     }
 };
-// //block user in room
-// room.statics.blockUserInRoom = async function(roomName,adminRoom,blocked) {
-//     let Room = this;
-//     let err = {};
-//     try {
-//         let room = await Room.findOne({name:roomName});
-//         if(room.members.find(itm => itm.name === adminRoom).admin !== true) return {err:"You are not admin of this group.",room:null};
-//         if(room.members.find(itm => itm.name === blocked).admin === true) return {err:"You can not block a group administrator.",room:null};
-//         if(!room.members.some(itm => itm.name === blocked) || room.blockedContacts.some(itm => itm.name === blocked)) return {err:"User "+blocked+" is not a member of this group or is already on the block list.",room:null};
-//
-//         let idx = room.members.find(itm => itm.name === blocked)._id;
-//         let blockedUser = room.members.id(idx);
-//         room.members.id(idx).remove();
-//         room.blockedContacts.push(blockedUser);
-//
-//         await room.save();
-//         return {err:null,room:room};
-//     } catch (err) {
-//         console.log('blockUserInRoom err: ',err);
-//         return {err:err,room:null};
-//     }
-// };
-// //unblock user in room
-// room.statics.unblockUserInRoom = async function(roomName,adminRoom,unblocked) {
-//     let Room = this;
-//     let err = {};
-//     try {
-//         let room = await Room.findOne({name:roomName});
-//         if(room.members.find(itm => itm.name === adminRoom).admin !== true) return {err:"You are not admin of this group.",room:null};
-//         if(room.members.some(itm => itm.name === unblocked) || !room.blockedContacts.some(itm => itm.name === unblocked)) return {err:"User "+unblocked+" is an allowed members of this group.",room:null};
-//
-//         let idx = room.blockedContacts.find(itm => itm.name === unblocked)._id;
-//         let unBlockedUser = room.blockedContacts.id(idx);
-//         room.blockedContacts.id(idx).remove();
-//         room.members.push(unBlockedUser);
-//
-//         await room.save();
-//         return {err:null,room:room};
-//     } catch (err) {
-//         console.log('unblockUserInRoom err: ',err);
-//         return {err:err,room:null};
-//     }
-// };
-// //set admin room
-// room.statics.setAdminInRoom = async function(roomName,adminRoom,newAdmin) {
-//     let Room = this;
-//     let err = {};
-//     try {
-//         let room = await Room.findOne({name:roomName});
-//         if(room.members.find(itm => itm.name === adminRoom).admin !== true) return {err:"You are not admin of this group.",room:null};
-//         if(!room.members.some(itm => itm.name === newAdmin) || room.blockedContacts.some(itm => itm.name === newAdmin)) {
-//             return {err:"User "+newAdmin+" is not a member of this group or is already on the block list.",room:null};
-//         }
-//         if(room.members.find(itm => itm.name === newAdmin).admin === true) return {err:"User "+newAdmin+" is already admin of this group.",room:null};
-//         let idx = room.members.find(itm => itm.name === newAdmin)._id;
-//         room = await Room.findOneAndUpdate({name:roomName ,"members._id": idx},{"members.$.admin" : true});
-//         console.log("setAdminInRoom room: ",room);
-//         return {err:null,room:room};
-//     } catch (err) {
-//         console.log('setAdminInRoom err: ',err);
-//         return {err:err,room:null};
-//     }
-// };
-// //leave  room
+//leave  room
 Room.leaveRoom = async function(roomName,name) {
     let Room = this;
     let err = {};
@@ -655,26 +602,95 @@ Room.leaveRoom = async function(roomName,name) {
         return {err:err,room:null,user:user};
     }
 };
-//delete  room
-/*room.statics.deleteRoom = async function(roomName,name) {
+//block user in room
+Room.blockUserInRoom = async function(roomName,adminRoom,blocked) {
     let Room = this;
     let err = {};
     try {
-        let user = await User.findOne({username:name});
-        let room = await Room.findOne({name:roomName});
-        if(room.members.find(itm => itm.name === name).admin === false) return {err:"You can not delete this group. You are not admin.",user:null};
-        let filterUserRooms = user.rooms.filter(itm => itm !== roomName);//dell room in user room list
-        user.rooms = filterUserRooms;
-        let roomMesId = await Message.findOne({uniqSig:roomName})._id;
-        await Room.deleteOne({name:roomName});//dell room
-        await Message.deleteOne({_id:roomMesId});//dell room history
-        await user.save();
-        return {err:null,user:user};
+        let room = await Room.findOne({
+            where:{name:roomName},
+            include:[
+                {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+                {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+                ]
+        });
+        let roomData = await room.reformatData();
+        console.log("blockUserInRoom room: ",roomData);
+        if(roomData.members.find(itm => itm.username === adminRoom).admin !== true) return {err:"You are not admin of this group.",room:null};
+        if(roomData.members.find(itm => itm.username === blocked).admin === true) return {err:"You can not block a group administrator.",room:null};
+        if(!roomData.members.some(itm => itm.username === blocked) || roomData.blockedMembers.some(itm => itm.username === blocked)) return {err:"User "+blocked+" is not a member of this group or is already on the block list.",room:null};
+        let userBlocked = await User.findOne({where:{username:blocked}});
+        await room.removeMember(userBlocked);
+        await room.addBlockedMember(userBlocked);
+        await room.reload();
+        return {err:null,room:room};
     } catch (err) {
-        console.log('Create room err: ',err);
-        return {err:err,user:null};
+        console.log('blockUserInRoom err: ',err);
+        return {err:err,room:null};
     }
-};*/
+};
+//unblock user in room
+Room.unblockUserInRoom = async function(roomName,adminRoom,unblocked) {
+    let Room = this;
+    let err = {};
+    try {
+        let room = await Room.findOne({
+            where:{name:roomName},
+            include:[
+                {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+                {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+            ]
+        });
+        let roomData = await room.reformatData();
+        if(roomData.members.find(itm => itm.username === adminRoom).admin !== true) return {err:"You are not admin of this group.",room:null};
+        if(roomData.members.some(itm => itm.username === unblocked) || !roomData.blockedMembers.some(itm => itm.username === unblocked)) return {err:"User "+unblocked+" is an allowed members of this group.",room:null};
+        let userUnblocked = await User.findOne({where:{username:unblocked}});
+        await room.removeBlockedMember(userUnblocked);
+        await room.addMember(userUnblocked);
+        await room.reload();
+        return {err:null,room:room};
+    } catch (err) {
+        console.log('unblockUserInRoom err: ',err);
+        return {err:err,room:null};
+    }
+};
+//set admin room
+Room.setAdminInRoom = async function(roomName,adminRoom,newAdmin) {
+    console.log("setAdminInRoom roomName:",roomName, " ,adminRoom: ",adminRoom," ,newAdmin: ",newAdmin)
+    let Room = this;
+    let err = {};
+    try {
+        let room = await Room.findOne({
+            where:{name:roomName},
+            include:[
+                {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+                {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+            ]
+        });
+        let roomData = await room.reformatData();
+        if(roomData.members.find(itm => itm.username === adminRoom).admin !== true) return {err:"You are not admin of this group.",room:null};
+        if(!roomData.members.some(itm => itm.username === newAdmin) || roomData.blockedMembers.some(itm => itm.username === newAdmin)) {
+            return {err:"User "+newAdmin+" is not a member of this group or is already on the block list.",room:null};
+        }
+        if(roomData.members.find(itm => itm.username === newAdmin).admin === true) return {err:"User "+newAdmin+" is already admin of this group.",room:null};
+        let userNewAdmin = await User.findOne({where:{username:newAdmin}});
+        console.log("setAdminInRoom room._id:",room._id," ,userNewAdmin._id: ",userNewAdmin._id);
+        await UserRoom.update({
+            admin:true
+        },{
+            where:{
+                roomId:room._id,
+                userId:userNewAdmin._id
+            }
+        });
+        await room.reload();
+        return {err:null,room:room};
+    } catch (err) {
+        console.log('setAdminInRoom err: ',err);
+        return {err:err,room:null};
+    }
+};
+
 //
 // module.exports.User = mongoose.model('User', user);
 // module.exports.Room = mongoose.model('Room', room);

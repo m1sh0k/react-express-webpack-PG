@@ -724,14 +724,17 @@ module.exports = function (server) {
             try {
                 console.log('blockRoomUser roomName: ',roomName," ,bannedUser: ",bannedUser);
                 let {err,room} = await Room.blockUserInRoom(roomName,username,bannedUser);
+                room = await room.reformatData();
+
+                let roomMembers = room.members.map(itm => itm.username);
                 if(err) {
                     return cb(err,null,null)
                 } else {
-                    let {err,mes} = await Message.messageHandler({sig:roomName,members:getRoomMembers(room),message:{user:username,text:"The group administrator "+username+" has added user "+bannedUser+" to the block list.",status: false,date: dateNow}});
-                    for (let itm of room.members){
-                        if(globalChatUsers[itm.name]) {
-                            socket.broadcast.to(globalChatUsers[itm.name].sockedId).emit('updateUserData',await aggregateUserData(itm.name));
-                            socket.broadcast.to(globalChatUsers[itm.name].sockedId).emit('messageRoom',mes);
+                    let {err,mes} = await Message.messageHandler({sig:roomName,members:roomMembers,message:{author: username,text:"The group administrator "+username+" has added user "+bannedUser+" to the block list.",status: false,date: dateNow}});
+                    for (let name of roomMembers){
+                        if(globalChatUsers[name]) {
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateUserData',await aggregateUserData(name));
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageRoom',mes);
                         }
                     }
                     cb(null,await aggregateUserData(username),mes)
@@ -746,14 +749,17 @@ module.exports = function (server) {
             try {
                 console.log('unBlockRoomUser roomName: ',roomName," ,bannedUser: ",unbannedUser);
                 let {err,room} = await Room.unblockUserInRoom(roomName,username,unbannedUser);
+                room = await room.reformatData();
+
+                let roomMembers = room.members.map(itm => itm.username);
                 if(err) {
                     return cb(err,null,null)
                 } else {
-                    let {err,mes} = await Message.messageHandler({sig:roomName,members:getRoomMembers(room),message:{ author: username, text: "The group administrator "+username+" has removed user "+unbannedUser+" from the block list.", status: false, date: dateNow}});
-                    for (let itm of room.members){
-                        if(globalChatUsers[itm.name]) {
-                            socket.broadcast.to(globalChatUsers[itm.name].sockedId).emit('updateUserData',await aggregateUserData(itm.name));
-                            socket.broadcast.to(globalChatUsers[itm.name].sockedId).emit('messageRoom',mes);
+                    let {err,mes} = await Message.messageHandler({sig:roomName,members:roomMembers,message:{ author: username, text: "The group administrator "+username+" has removed user "+unbannedUser+" from the block list.", status: false, date: dateNow}});
+                    for (let name of roomMembers){
+                        if(globalChatUsers[name]) {
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateUserData',await aggregateUserData(name));
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageRoom',mes);
                         }
                     }
                     cb(null,await aggregateUserData(username),mes)
@@ -768,14 +774,18 @@ module.exports = function (server) {
             try {
                 console.log('setRoomAdmin roomName: ',roomName," ,userName: ",newAdminName);
                 let {err,room} = await Room.setAdminInRoom(roomName,username,newAdminName);
+                room = await room.reformatData();
+                let roomMembers = room.members.map(itm => itm.username);
+                console.log('setRoomAdmin roomMembers: ',roomMembers);
                 if(err) {
                     return cb(err,null,null)
                 } else {
-                    let {err,mes} = await Message.messageHandler({sig:roomName,members:getRoomMembers(room),message:{ author: username, text: username+" has appointed "+newAdminName+" a new administrator.", status: false, date: dateNow}});
-                    for (let itm of room.members){
-                        if(globalChatUsers[itm.name]) {
-                            socket.broadcast.to(globalChatUsers[itm.name].sockedId).emit('updateUserData',await aggregateUserData(itm.name));
-                            socket.broadcast.to(globalChatUsers[itm.name].sockedId).emit('messageRoom',mes);
+                    let {err,mes} = await Message.messageHandler({sig:roomName,members:roomMembers,message:{ author: username, text: username+" has appointed "+newAdminName+" a new administrator.", status: false, date: dateNow}});
+                    console.log('setRoomAdmin mes: ',mes);
+                    for (let name of roomMembers){
+                        if(globalChatUsers[name]) {
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateUserData',await aggregateUserData(name));
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageRoom',mes);
                         }
                     }
                     cb(null,await aggregateUserData(username),mes)

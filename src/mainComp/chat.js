@@ -632,9 +632,9 @@ class Chat extends React.Component {
                 });
                 break;
             case "banRoomUser":
-                //console.log("onContextMenuHandler banRoomUser roomName: ",roomName,", username: ",username);
+                console.log("onContextMenuHandler banRoomUser roomName: ",roomName,", username: ",username);
                 this.socket.emit('blockRoomUser',roomName,username,date,(err,data,msgData)=>{
-                    //console.log("blockRoomUser' cb err: ",err,", cb rooms: ",data);
+                    console.log("blockRoomUser' cb err: ",err,", cb rooms: ",data,", msgData: ",msgData);
                     if(err) {
                         this.setState({
                             modalWindow:true,
@@ -647,9 +647,9 @@ class Chat extends React.Component {
                 });
                 break;
             case "unBanRoomUser":
-                //console.log("onContextMenuHandler unBlockRoomUser roomName: ",roomName,", username: ",username);
+                console.log("onContextMenuHandler unBlockRoomUser roomName: ",roomName,", username: ",username);
                 this.socket.emit('unBlockRoomUser',roomName,username,date,(err,data,msgData)=>{
-                    //console.log("unBlockRoomUser' cb err: ",err,", cb rooms: ",data);
+                    console.log("unBlockRoomUser' cb err: ",err,", cb rooms: ",data,", msgData: ",msgData);
                     if(err) {
                         this.setState({
                             modalWindow:true,
@@ -1185,7 +1185,7 @@ class Chat extends React.Component {
                                                         roomList={true}
                                                         userList={this.state.users.map(itm => itm.name)}
                                                         username={this.state.user.username}
-                                                        userNRSStatus={itm.members.find(itm => itm.username === this.state.user.username).enable}//user Room notification status
+                                                        userNRSStatus={itm.members.some(itm => itm.username === this.state.user.username) ? itm.members.find(itm => itm.username === this.state.user.username).enable : ""}//user Room notification status
                                                     />)
                                             }
                                         </div>
@@ -1203,6 +1203,7 @@ class Chat extends React.Component {
                             else eUser = undefined;
                             if(eUser !== undefined && eUser.name !== undefined) {eStore = this.state.messagesStore[eUser.name]}
                             else eStore = undefined;
+                            console.log("eStore: ",eStore);
                             return (
                                 <div className="message-block">
                                     <div name="chatRoom" id="chatDiv">

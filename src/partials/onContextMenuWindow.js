@@ -19,11 +19,11 @@ class OnContextMenu extends React.Component {
 
 
     render() {
-        console.log("OnContextMenu props: ",this.props);
+        //console.log("OnContextMenu props: ",this.props);
         const OnEnterUserList =()=>{
             return (
                 <ul className="userInvite"  >
-                    {this.props.userList.filter(name => !this.props.userRoomList.some(itm => itm === name)).map((name,i) => <li className='dropDownBtn' key={i} onClick={()=>{this.props.onContextMenuResponse("inviteUser",name)}}>{name}</li>)}
+                    {this.props.userList.map((name,i) => <li className='dropDownBtn' key={i} onClick={()=>{this.props.onContextMenuResponse("inviteUser",name)}}>{name}</li>)}
                 </ul>
             )
         };
@@ -32,14 +32,14 @@ class OnContextMenu extends React.Component {
                 case "banRoomUser":
                     return (
                         <ul className="userInvite" style={{top:25}}>
-                            {this.props.userRoomList.map((name,i) => <li className='dropDownBtn' key={i} onClick={()=>{this.props.onContextMenuResponse("banRoomUser",name)}}>{name}</li>)}
+                            {this.props.userRoomList.filter(itm => !itm.admin).map(itm => itm.username).map((name,i) => <li className='dropDownBtn' key={i} onClick={()=>{this.props.onContextMenuResponse("banRoomUser",name)}}>{name}</li>)}
                         </ul>
                     );
                     break;
                 case "setRoomAdmin":
                     return (
                         <ul className="userInvite" style={{top:50}}>
-                            {this.props.userRoomList.map((name,i) => <li className='dropDownBtn' key={i} onClick={()=>{this.props.onContextMenuResponse("setRoomAdmin",name)}}>{name}</li>)}
+                            {this.props.userRoomList.filter(itm => !itm.admin).map(itm => itm.username).map((name,i) => <li className='dropDownBtn' key={i} onClick={()=>{this.props.onContextMenuResponse("setRoomAdmin",name)}}>{name}</li>)}
                         </ul>
                     );
                     break;

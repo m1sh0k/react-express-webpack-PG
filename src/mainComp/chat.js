@@ -469,16 +469,20 @@ class Chat extends React.Component {
         const elemToScroll = this.refs[mesId];
         if(elemToScroll === undefined) {
             let messagesStore = this.state.messagesStore;
-            let userName = this.state.users[this.state.messageBlockHandlerId].name;
-            this.socket.emit(this.state.arrayBlockHandlerId === "rooms" ? 'getRoomLog' : 'getUserLog',userName,null,mesId,(err,arr)=>{
-                //console.log("getUserLog arr: ",arr," ,err: ",err);
+            let itmName;
+            if (this.state.arrayBlockHandlerId === "rooms") {
+                itmName = this.state.rooms[this.state.messageBlockHandlerId].name;
+            }else itmName = this.state.users[this.state.messageBlockHandlerId].name;
+
+            this.socket.emit(this.state.arrayBlockHandlerId === "rooms" ? 'getRoomLog' : 'getUserLog',itmName,null,mesId,(err,arr)=>{
+                console.log("getUserLog arr: ",arr," ,err: ",err);
                 if(err) {
                     this.setState({
                         modalWindow:true,
                         err:{message:err},
                     })
                 }else {
-                    messagesStore[userName] = arr;
+                    messagesStore[itmName] = arr;
                     this.setState({messagesStore}, ()=> this.changeScrollPos(mesId))
                 }
             });
@@ -542,7 +546,7 @@ class Chat extends React.Component {
         }
     };
 
-    resAddMeHandler =(confirmRes)=>{
+    resAddMeHandler =(confirmRes)=> {
         //('resAddMeHandler: ',confirmRes);
         if(confirmRes){
             let date = Date.now();
@@ -1285,13 +1289,16 @@ class Chat extends React.Component {
                                                                 <VisibilitySensor
                                                                     key={i+"VisibilitySensor"}
                                                                     containment={this.refs.InpUl}
-                                                                    onChange={(inView)=> inView &&
-                                                                        data.recipients.some(itm => itm.username === this.state.user.username) &&
-                                                                        data.recipients.find(itm => itm.username === this.state.user.username).status === false ? this.setAsRead(eUser.name,data._id) : ""}
+                                                                    onChange={
+                                                                        (inView)=> inView &&
+                                                                            data.recipients.some(itm => itm.username === this.state.user.username) &&
+                                                                            !data.recipients.find(itm => itm.username === this.state.user.username).status ? this.setAsRead(eUser.name,data._id) : ""
+                                                                    }
                                                                 >
                                                                     <li className={`left ${this.state.messageLink === data._id ? 'active' :''}`}  key={i} ref={data._id}
                                                                         onClick={()=>{
-                                                                            data.recipients.find(itm => itm.username === this.state.user.username).status === false  ?
+                                                                            data.recipients.some(itm => itm.username === this.state.user.username) &&
+                                                                            !data.recipients.find(itm => itm.username === this.state.user.username).status  ?
                                                                                 this.setAsRead(eUser.name,data._id) : ""
                                                                         }}
                                                                     >

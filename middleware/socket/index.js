@@ -396,7 +396,6 @@ module.exports = function (server) {
             }
         });
         //Find contacts
-
         socket.on('findContacts', async function (nameString,cb) {
             try {
                 //console.log("findContacts nameString:", nameString);
@@ -421,9 +420,31 @@ module.exports = function (server) {
         //chat users history cb
         socket.on('getUserLog', async function (reqUsername,reqMesCountCb,reqMesId,cb) {
             try {
-                console.log("getUserLog reqUsername: ", reqUsername);
+                console.log("getUserLog reqUsername: ", reqUsername, " ,mesCol: ",reqMesCountCb," ,reqMesId: ",reqMesId);
                 let {err,mes} = await Message.messageHandler({sig:setGetSig([username,reqUsername])},reqMesCountCb);
                 if(err) return cb(err,null);
+                if(reqMesId) {
+                    mes = await Message.findAll({
+                        where:{
+                            sig:setGetSig([username,reqUsername]),
+                            _id:{[Op.gte]:reqMesId}
+                        },
+                        order: [
+                            [ 'createdAt', 'DESC' ],
+                        ],
+                        include:{
+                            model:User,
+                            as:'recipients',
+                            attributes: ['username'],
+                            through: {attributes: ['status']}
+                        }
+                    });
+                    console.log("getUserLog mes: ",mes);
+                    let promisesMes = mes.map(itm => itm.reformatData());
+                    mes = await Promise.all(promisesMes);
+                    mes.sort((a,b) => a.createdAt - b.createdAt);
+                }
+
                 return cb(null,mes);
             } catch (err) {
                 console.log("getUserLog err: ",err);
@@ -534,13 +555,14 @@ module.exports = function (server) {
             }
         });
         //chat message forward
-        socket.on('messageForward', async function (ids,toUserName,from, cb) {
+        socket.on('messageForward', async function (ids,to,from, cb) {
+            //make from user to user(done), user to room, room to user, room to room
             try {
-                console.log('messageForward ids: ',ids,', toUserName: ',toUserName,', from: ',from);
-                if(toUserName === from) return cb("You can not forward to same user!",null);
+                console.log('messageForward ids: ',ids,', to: ',to,', from: ',from);
+                if(to === from) return cb("You can not forward to same user!",null);
                 let mesArray = await Message.findAll({where:{_id:{[Op.in]:ids}}});//find all mes
                 let toUser = await User.findOne(
-                    {where:{username:toUserName},
+                    {where:{username:to},
                         include:[
                             {model: User,as:'contacts'},
                             {model: User,as:'blockedContacts'},
@@ -553,33 +575,20 @@ module.exports = function (server) {
                         ]});
                 if(fromUser)  {
                     let toUserContacts = await toUser.reformatData();
-                    if(!toUserContacts.contacts.includes(username)) return cb("User "+toUserName+" do not add you in his white list!",null);
+                    if(!toUserContacts.contacts.includes(username)) return cb("User "+to+" do not add you in his white list!",null);
                 }
-                if(globalChatUsers[username].blockedContacts.includes(toUserName)) return cb("You can not write to baned users!",null);
-                let fromRoom;
-                let roomMembers;
-                if(!fromUser) {
-                    fromRoom = await Room.findOne(
-                        {where:{name:from},
-                            include:[
-                                {model: User,as:'members'},
-                                {model: User,as:'blockedMembers'},
-                            ]});
-
-                    roomMembers = fromRoom.members
-                }
+                if(globalChatUsers[username].blockedContacts.includes(to)) return cb("You can not write to baned users!",null);
                 let forwardedMesArr =  [];
                 for (const item of mesArray) {
                     let mes = await Message.create({
                         text: item.text,
-                        sig:setGetSig([username,toUserName]),
+                        sig:setGetSig([username,to]),
                         date:item.date,
                         author:item.author,
-                        forwardFrom:fromUser ? fromUser.username : fromRoom.name
+                        forwardFrom:fromUser.username
                     });
                     forwardedMesArr.push(mes._id);
-                    if(fromUser) await mes.addRecipient(toUser);
-                    if(fromRoom) await mes.addRecipients(roomMembers);
+                    await mes.addRecipient(toUser);
                 }
                 mesArray = await Message.findAll({
                     where:{_id:{[Op.in]:forwardedMesArr}},
@@ -590,8 +599,12 @@ module.exports = function (server) {
                         through: {attributes: ['status']}
                     }
                 });
-                if(!globalChatUsers[toUserName]) return cb(null,mesArray);
-                let sid = globalChatUsers[toUserName].sockedId;
+                let promisesMes = mesArray.map(itm => itm.reformatData());
+                mesArray = await Promise.all(promisesMes);
+                mesArray.sort((a,b) => a.createdAt - b.createdAt);
+                
+                if(!globalChatUsers[to]) return cb(null,mesArray);
+                let sid = globalChatUsers[to].sockedId;
                 socket.broadcast.to(sid).emit('messageForward', mesArray,username);
                 cb(null,mesArray);
             } catch (err) {
@@ -683,8 +696,30 @@ module.exports = function (server) {
                 if(!room) return cb("Error Group do not exist!",null);
                 if(room.blockedMembers.some(itm => itm.username === username)) return cb("You have been included in the block list. Message history is no longer available to you.",null);
                 if(!room.members.some(itm => itm.username === username)) return cb("You are not a member of the group.",null);
-                let {err,mes} = await Message.messageHandler({sig:roomName},reqMesCountCb);
-                if(err) return cb(err,null);
+
+                if(!reqMesId) {
+                    var {err,mes} = await Message.messageHandler({sig:roomName},reqMesCountCb);
+                    if(err) return cb(err,null);
+                }else {
+                    mes = await Message.findAll({
+                        where:{
+                            sig:roomName,
+                            _id:{[Op.gte]:reqMesId}
+                        },
+                        order: [
+                            [ 'createdAt', 'DESC' ],
+                        ],
+                        include:{
+                            model:User,
+                            as:'recipients',
+                            attributes: ['username'],
+                            through: {attributes: ['status']}
+                        }
+                    });
+                    let promisesMes = mes.map(itm => itm.reformatData());
+                    mes = await Promise.all(promisesMes);
+                    mes.sort((a,b) => a.createdAt - b.createdAt);
+                }
                 return cb(null,mes);
             } catch (err) {
                 console.log("getRoomLog err: ",err);
@@ -821,18 +856,25 @@ module.exports = function (server) {
                     //check: Is username member of correspondence?
                     if(!sig.includes(username)) return cb("Canceled. Attempted unauthorized access to data.",null);
                     sig = setGetSig(sig);
-                }
-                if( typeof sig === 'string') {//room correspondence
+                }else {//room correspondence
                     //check: Is username member of room?
-                    let {members} = await Room.findOne({where:{name:sig}});
-                    //console.log("members: ",members);
-                    if(!members.some((itm) => itm.name === username)) return cb("Canceled. Attempted unauthorized access to data.",null);
+                    let room = await Room.findOne({
+                        where:{name:sig},
+                        include:[{model: User,as:'members'}, {model: User,as:'blockedMembers'},]
+                    });
+                    room = await room.reformatData();
+                    console.log("members: ",room.members);
+                    if(!room.members.some((name) => name === username)) return cb("Canceled. Attempted unauthorized access to data.",null);
                     console.log('findMessage, sig: ',sig," ,textSearch: ",textSearch);
                 }
-                let mesQuery = await Message.find(
-                    { uniqSig: sig, $text: { $search: textSearch } },
-                    { score: { $meta: "textScore" } }
-                ).sort( { date: 1, score: { $meta: "textScore" } } );
+                let mesQuery = await Message.findAll({where:{
+                    sig:sig,
+                    text:{[Op.substring]:'%' + textSearch + '%'}
+                },include:{model:User,as:'recipients'}});
+
+                let promisesMes = mesQuery.map(itm => itm.reformatData());
+                mesQuery = await Promise.all(promisesMes);
+                mesQuery.sort((a,b) => a.createdAt - b.createdAt);
                 cb(null,mesQuery)
             } catch (err) {
                 console.log("findMessage err: ",err);

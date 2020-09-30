@@ -245,7 +245,6 @@ Message.messageHandler = async function (data,limit) {
                     through: {attributes: ['status']}
                 }
             });
-
             let promisesMes = mes.map(itm => itm.reformatData());
             mes = await Promise.all(promisesMes);
             mes.sort((a,b) => a.createdAt - b.createdAt);
@@ -256,8 +255,6 @@ Message.messageHandler = async function (data,limit) {
         return {err:err,mes:null};
     }
 };
-
-
 //////////////////////////////////////////////////////////////////
 //User internal methods
 User.prototype.encryptPassword = function(password) {

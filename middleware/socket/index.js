@@ -13,7 +13,14 @@ const { Op } = require("sequelize");
 
 
 
+async function reformatDataArray(forwardedMesArr) {
 
+    let promisesMes = forwardedMesArr.map(itm => itm.reformatData());
+    forwardedMesArr = await Promise.all(promisesMes);
+    forwardedMesArr.sort((a,b) => a.createdAt - b.createdAt);
+    console.log("forwardedMesArr: ",forwardedMesArr);
+    return forwardedMesArr
+}
 
 function getConSid(a) {
     var ConSid = '';
@@ -69,13 +76,6 @@ function findClientsSocket(roomId, namespace, io) {
         }
     }
     return res;
-}
-
-async function asyncIncludes(arr, chkItm) {
-    for (itm of arr) {
-        if(itm === chkItm) return true;
-    }
-    return false;
 }
 
 async function aggregateUserData(username) {
@@ -246,6 +246,7 @@ module.exports = function (server) {
             sockedId:reqSocketId,
             contacts:userDB.contacts.map(itm => itm.name) || [], //use only for username otherwise the data may not be updated.
             blockedContacts:userDB.blockedContacts.map(itm => itm.name) || [], //use only for username otherwise the data may not be updated.
+            rooms:userDB.rooms.map(itm => itm.name) || [],
         };
         console.log('connection globalChatUsers: ',globalChatUsers);
         //update UserData
@@ -554,8 +555,156 @@ module.exports = function (server) {
                 cb(err,null);
             }
         });
+        //chat message forward 2
+        socket.on('messageForward', async function (ids,to,from,arrayFrowardTo,arrayFrowardFrom,cb) {
+            //make from user to user(done), from user to room, from room to user, room to room
+            try {
+                console.log('messageForward ids: ',ids,', to: ',to,', from: ',from, ' ,arrayFrowardTo: ',arrayFrowardTo,' ,arrayFrowardFrom: ',arrayFrowardFrom);
+                // let sender = await User.findOne({where:{username:username},include:[{model: User,as:'contacts'},{model: User,as:'blockedContacts'},{model:Room,as:'rooms'}]});
+                // sender = await sender.reformatData();
+                if(globalChatUsers[username].blockedContacts.includes(to)) return cb("You can not write to baned users!",null);
+                if(!globalChatUsers[username].contacts.includes(to) && !globalChatUsers[username].rooms.includes(to)) return cb("User "+to+" is not in your contact lists!" , null);
+                let mesArray = await Message.findAll({where:{_id:ids},include:{model:User,as:'recipients'}});//find all mes
+                //Check if all messages belong to the user who makes the forward request
+                let ckeckMes = await reformatDataArray(mesArray);
+                ckeckMes = ckeckMes.map(itm => itm.author === username || itm.recipients.some(user => user.username === username));
+                if(ckeckMes.length !== ids.length) return cb("The attempt of unauthorized access to the messages. Not all the requested messages belong to you.",null);
+                //
+                let fromUser,toUser,fromRoom,toRoom;
+                let forwardedMesArr,idArr;
+                switch (arrayFrowardFrom){
+                    case "users":
+                        //from users
+                        switch (arrayFrowardTo){
+                            case "users":
+                                //to users
+                                console.log('messageForward2 fUtU');
+                                fromUser = await User.findOne({where:{username:from},include:[{model: User,as:'contacts'},{model: User,as:'blockedContacts'}]});
+                                toUser = await User.findOne({where:{username:to},include:[{model: User,as:'contacts'}, {model: User,as:'blockedContacts'}]});
+                                let toUserData = await toUser.reformatData();
+                                if(toUserData.blockedContacts.includes(username)) return cb("User "+to+" do not add you in his white list!",null);
+                                idArr = [];
+                                for (const item of mesArray) {
+                                    let mes = await Message.create({
+                                        text: item.text,
+                                        sig:setGetSig([username,to]),
+                                        date:item.date,
+                                        author:item.author,
+                                        forwardFrom:fromUser.username
+                                    });
+                                    await mes.addRecipient(toUser);
+                                    idArr.push(mes._id);
+                                }
+                                forwardedMesArr = await Message.findAll({where:{_id:idArr},include:{model:User,as:'recipients'}});
+                                forwardedMesArr = await reformatDataArray(forwardedMesArr);
+
+                                if(!globalChatUsers[to]) return cb(null,forwardedMesArr);
+                                socket.broadcast.to(globalChatUsers[to].sockedId).emit('messageForward', forwardedMesArr,username);
+                                cb(null,forwardedMesArr);
+                                break;
+                            case "rooms":
+                                //to rooms
+                                console.log('messageForward2 fUtR');
+                                fromUser = await User.findOne({where:{username:from},include:[{model: User,as:'contacts'},{model: User,as:'blockedContacts'}]});
+                                toRoom = await Room.findOne({where:{name:to},include:[{model: User,as:'members'}, {model: User,as:'blockedMembers'}]});
+                                let toRoomData = await toRoom.reformatData();
+                                if(toRoomData.blockedMembers.includes(username)) return cb("You do not member of group "+to+" or you blocked.",null);
+                                idArr = [];
+                                let roomMembers = await User.findAll({where:{username:toRoomData.members}});
+                                for (const item of mesArray) {
+                                    let mes = await Message.create({
+                                        text: item.text,
+                                        sig:to,
+                                        date:item.date,
+                                        author:item.author,
+                                        forwardFrom:fromUser.username
+                                    });
+                                    await mes.addRecipients(roomMembers);
+                                    idArr.push(mes._id);
+                                }
+                                forwardedMesArr = await Message.findAll({where:{_id:idArr},include:{model:User,as:'recipients'}});
+                                forwardedMesArr = await reformatDataArray(forwardedMesArr);
+
+                                for (const name of toRoomData.members) {
+                                    if(globalChatUsers[name]) socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageForward', forwardedMesArr,null,to);
+                                }
+                                cb(null,forwardedMesArr);
+                                break;
+                            default:
+                                return cb("Out of range, array handler error!" , null);
+                        }
+                        break;
+                    case "rooms":
+                        //from rooms
+                        switch (arrayFrowardTo){
+                            case "users":
+                                //to users
+                                console.log('messageForward2 fRtU');
+                                fromRoom = await Room.findOne({where:{name:from},include:[{model: User,as:'members'}, {model: User,as:'blockedMembers'}]});
+                                toUser = await User.findOne({where:{username:to},include:[{model: User,as:'contacts'}, {model: User,as:'blockedContacts'}]});
+                                let toUserData = await toUser.reformatData();
+                                if(toUserData.blockedContacts.includes(username)) return cb("User "+to+" do not add you in his white list!",null);
+                                idArr = [];
+                                for (const item of mesArray) {
+                                    let mes = await Message.create({
+                                        text: item.text,
+                                        sig:setGetSig([username,to]),
+                                        date:item.date,
+                                        author:item.author,
+                                        forwardFrom:fromRoom.name
+                                    });
+                                    await mes.addRecipient(toUser);
+                                    idArr.push(mes._id);
+                                }
+                                forwardedMesArr = await Message.findAll({where:{_id:idArr},include:{model:User,as:'recipients'}});
+                                forwardedMesArr = await reformatDataArray(forwardedMesArr);
+
+                                if(!globalChatUsers[to]) return cb(null,forwardedMesArr);
+                                socket.broadcast.to(globalChatUsers[to].sockedId).emit('messageForward', forwardedMesArr,username);
+                                cb(null,forwardedMesArr);
+                                break;
+                            case "rooms":
+                                //to rooms
+                                console.log('messageForward2 fRtR');
+                                fromRoom = await Room.findOne({where:{name:from},include:[{model: User,as:'members'}, {model: User,as:'blockedMembers'}]});
+                                toRoom = await Room.findOne({where:{name:to},include:[{model: User,as:'members'}, {model: User,as:'blockedMembers'}]});
+                                let toRoomData = await toRoom.reformatData();
+                                if(toRoomData.blockedMembers.includes(username)) return cb("You do not member of group: "+to+",or you blocked.",null);
+                                idArr =  [];
+                                let roomMembers = await User.findAll({where:{username:toRoomData.members}});
+                                for (const item of mesArray) {
+                                    let mes = await Message.create({
+                                        text: item.text,
+                                        sig:to,
+                                        date:item.date,
+                                        author:item.author,
+                                        forwardFrom:fromRoom.name
+                                    });
+                                    await mes.addRecipients(roomMembers);
+                                    idArr.push(mes._id);
+                                }
+                                forwardedMesArr = await Message.findAll({where:{_id:idArr},include:{model:User,as:'recipients'}});
+                                forwardedMesArr = await reformatDataArray(forwardedMesArr);
+
+                                for (const name of toRoomData.members) {
+                                    if(globalChatUsers[name]) socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageForward', forwardedMesArr,null,to);
+                                }
+                                cb(null,forwardedMesArr);
+                                break;
+                            default:
+                                return cb("Out of range, array handler error!" , null);
+                        }
+                        break;
+                    default:
+                        return cb("Out of range, array handler error!" , null);
+                }
+            } catch (err) {
+                console.log("messageForward err: ",err);
+                cb(err,null);
+            }
+        });
         //chat message forward
-        socket.on('messageForward', async function (ids,to,from, cb) {
+        /*socket.on('messageForward', async function (ids,to,from, cb) {
             //make from user to user(done), user to room, room to user, room to room
             try {
                 console.log('messageForward ids: ',ids,', to: ',to,', from: ',from);
@@ -573,10 +722,8 @@ module.exports = function (server) {
                             {model: User,as:'contacts'},
                             {model: User,as:'blockedContacts'},
                         ]});
-                if(fromUser)  {
-                    let toUserContacts = await toUser.reformatData();
-                    if(!toUserContacts.contacts.includes(username)) return cb("User "+to+" do not add you in his white list!",null);
-                }
+                let toUserContacts = await toUser.reformatData();
+                if(!toUserContacts.contacts.includes(username)) return cb("User "+to+" did not add you in his white list!",null);
                 if(globalChatUsers[username].blockedContacts.includes(to)) return cb("You can not write to baned users!",null);
                 let forwardedMesArr =  [];
                 for (const item of mesArray) {
@@ -599,10 +746,11 @@ module.exports = function (server) {
                         through: {attributes: ['status']}
                     }
                 });
+
                 let promisesMes = mesArray.map(itm => itm.reformatData());
                 mesArray = await Promise.all(promisesMes);
                 mesArray.sort((a,b) => a.createdAt - b.createdAt);
-                
+
                 if(!globalChatUsers[to]) return cb(null,mesArray);
                 let sid = globalChatUsers[to].sockedId;
                 socket.broadcast.to(sid).emit('messageForward', mesArray,username);
@@ -611,7 +759,7 @@ module.exports = function (server) {
                 console.log("messageForward err: ",err);
                 cb(err,null);
             }
-        });
+        });*/
         //room events
         //create new room
         socket.on('createRoom', async function  (roomName,dateNow,cb) {
@@ -885,8 +1033,21 @@ module.exports = function (server) {
         socket.on('deleteMessages', async function  (reqUsername,ids,cb) {
             try {
                 console.log('deleteMessages, ids: ',ids,' ,reqUsername: ',reqUsername);
-                //delete all messages with ids and check members array
-                await Message.deleteMany({$and:[{_id:{$in:ids}},{members:{$all:[username,reqUsername]}}]});
+                //delete all messages with ids and sig
+                if(!globalChatUsers[username].contacts.includes(reqUsername) && !globalChatUsers[username].blockedContacts.includes(reqUsername)) {
+                    return cb("Rejected. User "+reqUsername+" is not in your lists!",null);
+                }
+                let usersMes = await Message.findAll({
+                    where:{
+                        _id:ids,
+                        sig:setGetSig([username,reqUsername]),
+                        //author:{[Op.or]:[username,reqUsername]}
+                    }
+                });
+                console.log('deleteMessages, usersMes.length: ',usersMes.length,' ,ids.length: ',ids.length);
+                if(usersMes.length !== ids.length) return cb("The attempt of unauthorized access to the messages. Not all the requested messages belong to you.",null);
+                //
+                await Message.destroy({where:{_id:ids,sig:setGetSig([username,reqUsername])}});
                 //delete user's messages in messageStore
                 if(globalChatUsers[reqUsername]) socket.broadcast.to(globalChatUsers[reqUsername].sockedId).emit('updateMessageStore',username,ids);
                 cb(null)
@@ -895,8 +1056,6 @@ module.exports = function (server) {
                 cb(err)
             }
         });
-
-        //
         // when the user disconnects perform this
         socket.on('disconnect', async function () {
             try {

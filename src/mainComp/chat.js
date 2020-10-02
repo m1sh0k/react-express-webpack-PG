@@ -112,9 +112,15 @@ class Chat extends React.Component {
         this.socket = socket
             //.emit('sayOnLine')
 
-            .on('messageForward', (mesArray,username)=>{
-                mesArray.forEach(itm => this.printMessage(itm, username));
-                this.msgCounter("users",this.getUsersIdx("users",username));
+            .on('messageForward', (mesArray,username,roomname)=>{
+                if(username){
+                    mesArray.forEach(itm => this.printMessage(itm, username));
+                    this.msgCounter("users",this.getUsersIdx("users",username));
+                }
+                if(roomname){
+                    mesArray.forEach(itm => this.printMessage(itm, roomname));
+                    this.msgCounter("rooms",this.getUsersIdx("rooms",roomname));
+                }
             })
 
             .on('updateUserData',(userData)=>{
@@ -143,6 +149,7 @@ class Chat extends React.Component {
             })
             .on('updateMessageStore',(username,ids)=> {
                 console.log("updateMessageStore username: ", username, " ,mes ids: ", ids);
+                if(!this.state.messagesStore[username]) return;
                 this.setState(state => {
                     state.messagesStore[username] = state.messagesStore[username].filter((itm) => !ids.includes(itm._id));
                     return state
@@ -955,10 +962,10 @@ class Chat extends React.Component {
         }
     };
 
-    forwardHandler =(forwardTo,forwardFrom)=>{
-        //console.log("forwardHandler username: ",forwardTo);
-        //console.log("forwardHandler selectModMsgList: ",this.state.selectModMsgList);
-        this.socket.emit('messageForward', this.state.selectModMsgList, forwardTo,forwardFrom, (err, mesArray) => {
+    forwardHandler =(forwardTo,forwardFrom,arrayFrowardTo)=>{
+        let arrayFrowardFrom = this.state.arrayBlockHandlerId;
+        console.log("forwardHandler forwardTo: ",forwardTo,", forwardFrom: ",forwardFrom,", arrayFrowardTo: ",arrayFrowardTo,", arrayFrowardFrom: ",arrayFrowardFrom);
+        this.socket.emit('messageForward', this.state.selectModMsgList, forwardTo,forwardFrom,arrayFrowardTo,arrayFrowardFrom, (err, mesArray) => {//
             if (err) {
                 //console.log("messageForward: ", err);
                 this.setState({
@@ -968,7 +975,6 @@ class Chat extends React.Component {
             } else {
                 //console.log("messageForward successful updatedMes: ", mesArray);
                 mesArray.forEach(itm => this.printMessage(itm, forwardTo));
-
                 this.setState({
                     isForward: false,
                     selectMode:false,
@@ -1219,7 +1225,11 @@ class Chat extends React.Component {
                                             </div>
                                             <div className={`forwardUserList ${this.state.isForward ? "show" : ""}`}>
                                                 <ul>
-                                                    {this.state.users.map((user,i)=> <li key={i} onClick={()=> this.forwardHandler(user.name,eUser.name)} className="btn user">{user.name}</li>)}
+
+                                                    <li className="userList white">USERS</li>
+                                                    {this.state.users.map((user,i)=> <li key={i} onClick={()=> this.forwardHandler(user.name,eUser.name,'users')} className="btn user">{user.name}</li>)}
+                                                    <li className="userList white">GROUPS</li>
+                                                    {this.state.rooms.map((room,i)=> <li key={i} onClick={()=> this.forwardHandler(room.name,eUser.name,'rooms')} className="btn user">{room.name}</li>)}
                                                 </ul>
                                             </div>
 

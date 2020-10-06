@@ -7,6 +7,7 @@ var User = require('../db/models/index').User;
 var Message = require('../db/models/index').Message;
 var Room = require('../db/models/index').Room;
 var MessageData = require('../db/models/index').MessageData;
+var UserRoom = require('../db/models/index').UserRoom;
 var globalChatUsers = {};
 var common = require('../common').commonEmitter;
 const { Op } = require("sequelize");
@@ -90,7 +91,7 @@ async function aggregateUserData(username) {
         });
 
         let userData = await data.reformatData();
-        console.log('test agrReFormatData: ', userData);
+        //console.log('test agrReFormatData: ', userData);
         let contacts = userData.contacts || [];
         let blockedContacts = userData.blockedContacts || [];
         let rooms = userData.rooms|| [];
@@ -111,7 +112,7 @@ async function aggregateUserData(username) {
             let {err,mes} = await Message.messageHandler({sig:setGetSig([username,name])});
 
             let col = mes.filter(itm => itm.author !== username && itm.recipients[0].status === false).length;
-            return contacts[i] = {name:name,  msgCounter :col, allMesCounter: mes.length, typing:false, onLine:status, banned:banned, authorized:authorized, created_at:nameUserDB.created, userId:nameUserDB._id}
+            return contacts[i] = {name:name,  msgCounter :col, allMesCounter: mes.length, typing:false, onLine:status, banned:banned, authorized:authorized, created_at:nameUserDB.createdAt, userId:nameUserDB._id}
         });
         let bL = blockedContacts.map(async (name,i) =>{
             let status = !!globalChatUsers[name];
@@ -127,7 +128,7 @@ async function aggregateUserData(username) {
             let authorized =  !(!nameUserDB.contacts.includes(username) && !nameUserDB.blockedContacts.includes(username));
             let {err,mes} = await Message.messageHandler({sig:setGetSig([username,name])});
             let col = mes.filter(itm => itm.author !== username && itm.recipients[0].status === false).length;
-            return blockedContacts[i] = {name:name, msgCounter :col, allMesCounter: mes.length,typing:false, onLine:status, banned:banned, authorized:authorized, created_at:nameUserDB.created, userId:nameUserDB._id}
+            return blockedContacts[i] = {name:name, msgCounter :col, allMesCounter: mes.length,typing:false, onLine:status, banned:banned, authorized:authorized, created_at:nameUserDB.createdAt, userId:nameUserDB._id}
         });
         let rL = rooms.map(async (name,i) =>{
             let data = await Room.findOne({
@@ -141,7 +142,7 @@ async function aggregateUserData(username) {
             let {err,mes} = await Message.messageHandler({sig:name});
             let mesFltr = mes.filter(itm => itm.author !== username && itm.recipients.some(itm => itm.username === username) && !itm.recipients.find(itm => itm.username === username).status);
             console.log('aggDataRooms mesFltr: ',mesFltr.length);
-            return rooms[i] = {name:name, msgCounter:mesFltr.length, allMesCounter:mes.length, members:room.members, blockedMembers:room.blockedMembers, created_at:room.created_at, groupId:room._id}
+            return rooms[i] = {name:name, msgCounter:mesFltr.length, allMesCounter:mes.length, members:room.members, blockedMembers:room.blockedMembers, created_at:room.createdAt, groupId:room._id}
         });
         userData.contacts = await Promise.all(wL);
         userData.blockedContacts = await Promise.all(bL);
@@ -243,6 +244,7 @@ module.exports = function (server) {
         //update global chat users obj
         //obj to store  onLine users sockedId
         globalChatUsers[username] = {
+            _id:userDB._id,
             sockedId:reqSocketId,
             contacts:userDB.contacts.map(itm => itm.name) || [], //use only for username otherwise the data may not be updated.
             blockedContacts:userDB.blockedContacts.map(itm => itm.name) || [], //use only for username otherwise the data may not be updated.
@@ -413,7 +415,8 @@ module.exports = function (server) {
         //Check contact
         socket.on('checkContact', async function (data,cb) {
             console.log('checkContact: ',data);
-            let user = await User.findOne({raw: true,where:{username:data}}) || await User.findOne({raw: true,where:{_id:data}});
+            let user = await User.findOne({where:{username:data}}) || await User.findOne({where:{_id:data}});
+            user = await user.reformatData();
             if(user) {
                 return cb(user.username);
             } else return cb(null)
@@ -883,16 +886,22 @@ module.exports = function (server) {
                 let room = await Room.findOne({
                     where:{name:roomName},
                     include: [
-                        {model: User,as:'members'},
-                        {model: User,as:'blockedMembers'},
+                        {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+                        {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
                     ],
                 });
-                room = await room.reformatData();
+                let roomData = await room.reformatData();
+                let enabledUsers = roomData.members.filter(itm => itm.enable).map(itm => itm.username);//do not send to users who have disabled notifications
+                room.members = room.members.map(itm => itm.username);
+                room.blockedMembers = room.blockedMembers.map(itm => itm.username);
                 console.log('messageRoom room: ',room);
+
                 if(!room.members.includes(username)) return cb("You are not a member of the group.",null);
                 if(room.blockedMembers.includes(username)) return cb("You have been included in the block list. Send messages to you is no longer available.",null);
                 let {err,mes} = await Message.messageHandler({sig:roomName,members:room.members, message:{ author: username, text: text, status: false, date: dateNow}});
-                for(let name of room.members) {
+
+                console.log('messageRoom enabledUsers: ',enabledUsers);
+                for(let name of enabledUsers) {
                     if(globalChatUsers[name] && name !== username) socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageRoom',mes);
                 }
                 cb(null,mes);
@@ -982,14 +991,28 @@ module.exports = function (server) {
         socket.on('changeNtfStatus', async function  (roomName,cb) {
             try {
                 console.log('changeNtfStatus roomName: ',roomName);
-                let room = await Room.findOne({where:{name:roomName}});
-                if(!room.members.some(itm => itm.name === username) || room.blockedContacts.some(itm => itm.name === username)) {
+                let room = await Room.findOne({
+                    where:{name:roomName},
+                    include:[
+                        {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+                        {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+                    ]
+                });
+                let roomData = await room.reformatData();
+                console.log('changeNtfStatus roomData: ',roomData);
+                if(!roomData.members.some(itm => itm.username === username) || roomData.blockedMembers.some(itm => itm.username === username)) {
                     return cb("You are not a member of this group or you are on the block list.",null);
                 }
-                let idx = room.members.find(itm => itm.name === username)._id;
-                let statusNot = room.members.find(itm => itm.name === username).enable;
-                await Room.findOneAndUpdate({name:roomName ,"members._id": idx},{"members.$.enable" : !statusNot});
-                //console.log("changeNtfStatus room: ",room);
+                let status = roomData.members.find(itm => itm.username === username).enable;
+                await UserRoom.update({
+                    enable:!status
+                },{
+                    where:{
+                        roomId:room._id,
+                        userId:globalChatUsers[username]._id
+                    }
+                });
+
                 cb(null,await aggregateUserData(username))
             } catch (err) {
                 console.log("setRoomAdmin err: ",err);
@@ -1000,9 +1023,12 @@ module.exports = function (server) {
         socket.on('findMessage', async function  (sig,textSearch,cb) {
             try {
                 console.log('findMessage, init sig: ',sig);
+
                 if( Array.isArray(sig)) {//2 members correspondence
+                    let ndUser = sig.filter(name => name !== username)[0];
+                    if(!globalChatUsers[username].contacts.includes(ndUser)) return cb("Canceled. Attempted unauthorized access to data.",null);
                     //check: Is username member of correspondence?
-                    if(!sig.includes(username)) return cb("Canceled. Attempted unauthorized access to data.",null);
+                    if(!sig.includes(username) || sig.length > 2) return cb("Canceled. Attempted unauthorized access to data.",null);
                     sig = setGetSig(sig);
                 }else {//room correspondence
                     //check: Is username member of room?
@@ -1034,6 +1060,7 @@ module.exports = function (server) {
             try {
                 console.log('deleteMessages, ids: ',ids,' ,reqUsername: ',reqUsername);
                 //delete all messages with ids and sig
+                if(await Room.findOne({where:{name:reqUsername}})) return cb("Rejected. Delete group history is not available!",null);
                 if(!globalChatUsers[username].contacts.includes(reqUsername) && !globalChatUsers[username].blockedContacts.includes(reqUsername)) {
                     return cb("Rejected. User "+reqUsername+" is not in your lists!",null);
                 }

@@ -473,7 +473,7 @@ User.changeData = async function(paramAuth) {
 Room.prototype.reformatData = async function() {
     let nameUserDB = this;
     nameUserDB = nameUserDB.toJSON();
-    //console.log("reformatData: ",nameUserDB);
+    console.log("reformatData: ",nameUserDB);
     nameUserDB.members = nameUserDB.members.map((itm) => {
             if(itm.rooms){
                 return {username:itm.username, enable:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.enable, admin:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.admin}
@@ -500,9 +500,9 @@ Room.createRoom = async function(roomName,username) {
             //console.log('Room.createRoom user: ',Object.keys(user.__proto__));
             await room.addMember(user);
             await user.addRoom(room,{through:{enable:true,admin:true}});
-            await room.reload();
+            //await room.reload();
             await user.reload();
-            //room = await Room.findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
+            room = await Room.findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
             return {err:null,room:room,user:user}
         }else{
             return {err:"A group named "+roomName+" already exists. Choose another group name.",room:null,user:null};
@@ -577,6 +577,7 @@ Room.leaveRoom = async function(roomName,name) {
         let roomData = room.reformatData();
         //if(roomData.members.find(itm => itm.name === name).admin === true) return {err:"You can not leave this group. You are admin.",room:null,user:null};
         await user.removeRoom(room);
+        await user.reload();
         await room.removeMember(user);
         room = await Room.findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
         roomData = await room.reformatData();
@@ -591,14 +592,15 @@ Room.leaveRoom = async function(roomName,name) {
             let mesArr = mes.map(itm => itm._id);
             await room.setBlockedMembers([]);
             await Room.destroy({where: {_id: room._id}});
-            await Message.destroy({where:{[Op.in]:mesArr}});
+            console.log("Message.destroy arr: ",mesArr);
+            await Message.destroy({where: {_id: mesArr}});
             console.log("Delete room protocol successful done");
             return {err:null,room:null,user:user};
         }
         return {err:null,room:roomData,user:user};
     } catch (err) {
         console.log('leaveRoom err: ',err);
-        return {err:err,room:null,user:user};
+        return {err:err,room:null,user:null};
     }
 };
 //block user in room
@@ -699,6 +701,7 @@ module.exports.User = User;
 module.exports.Message = Message;
 module.exports.Room = Room;
 module.exports.MessageData = MessageData;
+module.exports.UserRoom = UserRoom;
 
 
 

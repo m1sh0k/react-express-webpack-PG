@@ -1,7 +1,10 @@
+//third-party applications
+import VisibilitySensor from 'react-visibility-sensor'
 import React from 'react';
 import Page from '../layout/page.js';
 import io from 'socket.io-client';
 import {Redirect} from 'react-router-dom'
+////
 import UserBtn from '../partials/userBtn.js'
 import Modal from '../partials/modalWindow.js'
 import Confirm from '../partials/confirmModalWindow.js'
@@ -14,8 +17,7 @@ import addGroupImg from '../../public/img/add-group-of-people.png'
 import addUserImg from '../../public/img/add-user-button.png'
 import OnContextMenuBtn from '../partials/onContextMenuBtn.js'
 
-//third-party applications
-import VisibilitySensor from 'react-visibility-sensor'
+
 
 
 let contentMenuStyle = {
@@ -451,8 +453,8 @@ class Chat extends React.Component {
     };
 
     historySearch = (text,name)=> {
-       // console.log("historySearch: ",text," ,userName: ",name);
-        if(!name || !text || !this.state.arrayBlockHandlerId) return;
+        console.log("historySearch: ",text," ,userName: ",name);
+        if(!name /*|| !text */|| !this.state.arrayBlockHandlerId) return;
         this.socket.emit('findMessage',this.state.arrayBlockHandlerId === "rooms" ? name : [name,this.state.user.username],text,(err,messages)=>{
             if(err) {
                 //console.log("historySearch err: ",err);
@@ -1107,11 +1109,11 @@ class Chat extends React.Component {
                             </div>
 
 
-                            {this.state.showHistorySearch && this.state.messSearchArr.length >= 1 ?
+                            {this.state.textSearchMess.length > 0 && this.state.showHistorySearch && this.state.messSearchArr.length >= 1 ?
                                 <div className='message-block-search'>
                                     {
-                                        this.state.messSearchArr.length <=0 ?
-                                            <p className='message-count'>Mo messages found</p>
+                                        this.state.messSearchArr.length <= 0 ?
+                                            <p className='message-count'>No messages found</p>
                                             :
                                             <p className='message-count'>Found {this.state.messSearchArr.length} message{this.state.messSearchArr.length > 1 ? 's' :''} </p>
                                     }
@@ -1213,13 +1215,15 @@ class Chat extends React.Component {
                             else eUser = undefined;
                             if(eUser !== undefined && eUser.name !== undefined) {eStore = this.state.messagesStore[eUser.name]}
                             else eStore = undefined;
-                            console.log("eStore: ",eStore);
+                            //console.log("eStore: ",eStore);
                             return (
                                 <div className="message-block">
                                     <div name="chatRoom" id="chatDiv">
 
                                             <div className={`btnMessageGroup ${this.state.isChecked ? "show" : ""}`}>
-                                                <button className="btn" data-loading-text="Deleting..." onClick={()=>this.onContextMenuBtnResponse('Delete Selected')}>Delete</button>
+                                                {this.state.arrayBlockHandlerId === "rooms" ? "" :
+                                                    <button className="btn" data-loading-text="Deleting..." onClick={()=>this.onContextMenuBtnResponse('Delete Selected')}>Delete</button>
+                                                }
                                                 <button className="btn" data-loading-text="Forward to..." onClick={()=>this.onContextMenuBtnResponse('Forward to')}>Forward to</button>
 
                                             </div>
@@ -1328,7 +1332,6 @@ class Chat extends React.Component {
                                                                                                  points="4 11 8 15 16 6"></polyline>
                                                                                          </svg>
                                                                                      </div>
-
                                                                                  </label>
                                                                                  : ""
                                                                              }
@@ -1342,9 +1345,6 @@ class Chat extends React.Component {
                                                                                 }
                                                                                 {data.forwardFrom == null ? "" : " Forwarded from: " + data.forwardFrom }
                                                                             </div>
-
-
-
                                                                         </span>
                                                                     </li>
                                                                 </VisibilitySensor >

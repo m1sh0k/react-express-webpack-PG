@@ -627,11 +627,12 @@ class Chat extends React.Component {
     };
     //Right click handler
     onContextMenuHandler =(res,username,roomName)=>{
+        let name = this.state.users[this.state.messageBlockHandlerId].name;
         let date = Date.now();
         switch (res) {
             case "shareContact":
                 console.log("onContextMenuHandler shareContact username: ",username);
-                this.socket.emit('message', 'console: shareContact '+username,this.state.users[this.state.messageBlockHandlerId].name, date, (err, mes) => {
+                this.socket.emit('message', 'console: shareContact '+username,name, date, (err, mes) => {
                     if (err) {
                         //console.log("sendMessage users err: ", err);
                         this.setState({
@@ -1334,6 +1335,9 @@ class Chat extends React.Component {
                                                                         }}
                                                                     >
                                                                         {data.text}
+                                                                        {
+                                                                            data.action && data.action === "shareContact" ? <button>ADD</button> : ""
+                                                                         }
                                                                         <span className="messageData">
                                                                              {this.state.selectMode ?
                                                                                  <label htmlFor={`${data._id}`} className="label-cbx">

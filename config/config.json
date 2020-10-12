@@ -1,6 +1,6 @@
 {
   "port": 7777,
-  "AdministratorId": "5df9fb172c2bb91d1096aba6",
+  "AdministratorId": "1",
   "pg": {
     "user": "postgres",
     "host": "localhost",

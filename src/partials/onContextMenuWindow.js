@@ -19,11 +19,18 @@ class OnContextMenu extends React.Component {
 
 
     render() {
-        //console.log("OnContextMenu props: ",this.props);
+        console.log("OnContextMenu props: ",this.props);
         const OnEnterUserList =()=>{
             return (
                 <ul className="userInvite"  >
                     {this.props.userList.map((name,i) => <li className='dropDownBtn' key={i} onClick={()=>{this.props.onContextMenuResponse("inviteUser",name)}}>{name}</li>)}
+                </ul>
+            )
+        };
+        const OnEnterContacts =()=>{
+            return (
+                <ul className="userInvite"  >
+                    {this.props.contacts.map((name,i) => <li className='dropDownBtn' key={i} onClick={()=>{this.props.onContextMenuResponse("shareContact",name)}}>{name}</li>)}
                 </ul>
             )
         };
@@ -87,6 +94,12 @@ class OnContextMenu extends React.Component {
                     </ul>
                 ):(
                     <ul className="userDropDown" onMouseLeave={this.props.rightClickMenuOnHide} style={this.props.contextMenuLocation}>
+                        {
+                            this.props.contacts ?
+                                <li className='dropDownBtn invite' onMouseEnter={(e)=>{e.preventDefault();e.stopPropagation();this.showHideList("onEnterUserList")}} onMouseLeave={()=>this.showHideList("onEnterUserList")} >Share contact
+                                    <OnEnterContacts/>
+                                </li> : ""
+                        }
                         <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("moveOnTop")}}>Move on top</li>
                         <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("viewUserData")}}>View user data</li>
                         <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("clearChatWindow")}}>Clear chat window</li>

@@ -72,27 +72,29 @@ module.exports = function(app) {
     };
 
     app.post('/users',checkAuthAdmin,async function(req, res, next) {
-        function find() {
-            console.log('function find()');
-            User.find({}, function (err, users) {
-                if(err) return next(err);
-                res.json(users);
-            })
+        try {
+            if(req.body.usersArray) {
+                var willDelete = req.body.usersArray;
+                console.log("users for deleting: ", willDelete);
+                willDelete.forEach(function(id) {
+                    if (id != config.get('AdministratorId')) {
+                        console.log('users for deleting id: ',id);
+                        User.deleteOne({ _id: id }, function (err) {
+                            if (err) return next (err)
+                        });
+                    };
+                });
+                let users = await User.findAll();
+                console.log('/users: ', users);
+                res.json(users)
+            } else {
+                let users = await User.findAll();
+                console.log('/users: ', users);
+                res.json(users)
+            }
+        } catch(err){
+            console.log('getUsers err: ',err)
         }
-        if(req.body.usersArray) {
-            var willDelete = req.body.usersArray;
-            console.log("users for deleting: ", willDelete);
-            willDelete.forEach(function(id) {
-                if (id != config.get('AdministratorId')) {
-                    console.log('users for deleting id: ',id);
-                    User.deleteOne({ _id: id }, function (err) {
-                        if (err) return next (err)
-                    });
-                };
-            });
-            find();
-        } else {find()}
-
     });
 
     app.post('/checkName',async function (req, res) {

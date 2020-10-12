@@ -498,69 +498,98 @@ module.exports = function (server) {
         socket.on('message', async function (text,resToUserName,dateNow,cb) {
             try {
                 console.log('message');
-                // if(text.split(' ')[0] === 'console:'){
-                //     let consoleArr = text.split(' ');
-                //     console.log('message console command: ', consoleArr[1],',', 'message console data: ', consoleArr[2]);
-                //     let mes;
-                //     switch (consoleArr[1]){
-                //         case "deleteMsg":
-                //             console.log("message console deleteMsg DATA: ", consoleArr[2].split(','));
-                //             let ids = consoleArr[2].split(',');
-                //             //delete all messages with ids and check members array
-                //             await Message.deleteMany({$and:[{_id:{$in:ids}},{members:{$all:[username,resToUserName]}}]});
-                //             //delete user's messages in messageStore
-                //             socket.emit('updateMessageStore',resToUserName,ids);
-                //             if(globalChatUsers[resToUserName]) socket.broadcast.to(globalChatUsers[resToUserName].sockedId).emit('updateMessageStore',username,ids);
-                //             break;
-                //         case "getAllUsersOnline":
-                //             console.log("message console getAllUsersOnline: ");
-                //             let usersOnLine = Object.keys(globalChatUsers).join();
-                //             mes = { members:[username,resToUserName],
-                //                 statusCheckArr: [],
-                //                 _id: 'noId',
-                //                 uniqSig: setGetSig([username,resToUserName]),
-                //                 text: usersOnLine,
-                //                 user: username,
-                //                 status: true,
-                //                 date: Date.now()};
-                //             return cb(null,mes);
-                //             break;
-                //         case "getMyId":
-                //             console.log("message console getMyId: ");
-                //             mes = { members:[username,resToUserName],
-                //                 statusCheckArr: [],
-                //                 _id: 'noId',
-                //                 uniqSig: setGetSig([username,resToUserName]),
-                //                 text: userDB._id,
-                //                 user: username,
-                //                 status: true,
-                //                 date: Date.now()};
-                //             return cb(null,mes);
-                //             break;
-                //         default:
-                //             console.log("message console : Sorry, we are out of " + consoleArr[1] + ".");
-                //     }
-                // }
-                if (text.length === 0 || !resToUserName) return;
-                if (text.length >= 500) return cb("To long message!",null);
-                let resUser = await User.findOne({where:{username:resToUserName},include:[{model:User,as:'contacts'}]});
-                if(globalChatUsers[username].blockedContacts.includes(resToUserName)) return cb("You can not write to baned users!",null);
-                if(!resUser.contacts.map(itm => itm.username).includes(username)) return cb("User "+resToUserName+" do not add you in his white list!",null);
-                let {err,mes} = await Message.messageHandler({sig:setGetSig([username,resToUserName]),members:[username,resToUserName],message:{ author: username, text: text, status: false, date: dateNow}});
-                if(err) return cb("Add message to DB err: " + err,null);
-                //console.log('message mes:',mes);
-                if(!globalChatUsers[resToUserName]) return cb(null,mes);
-                let sid = globalChatUsers[resToUserName].sockedId;
-                socket.broadcast.to(sid).emit('message', mes);
-                cb(null,mes);
+                if(text.split(' ')[0] === 'console:'){
+                    let consoleArr = text.split(' ');
+                    console.log('message console command: ', consoleArr[1],',', 'message console data: ', consoleArr[2]);
+                    switch (consoleArr[1]){
+                        case "shareContact":
+                            console.log("message console shareContact DATA: ", consoleArr[2]);
+                            let sendUser = consoleArr[2];
+                            let toUser = await User.findOne({where:{username:resToUserName},include:[
+                                {model: User,as:'contacts'},
+                                {model: User,as:'blockedContacts'}
+                            ]});
+                            if(!toUser) return cb( "User"+resToUserName+"not found!",null);
+                            let sendContact = await User.findOne({where:{username:sendUser},include:[
+                                {model: User,as:'contacts'},
+                                {model: User,as:'blockedContacts'}
+                            ]});
+                            if(!sendContact) return cb( "User "+sendUser+" not found!",null);
+                            toUser = await toUser.reformatData();
+                            sendContact = await sendContact.reformatData();
+                            if(!globalChatUsers[username].contacts.includes(sendUser) && !globalChatUsers[username].blockedContacts.includes(sendUser)) return cb("User "+sendUser+" is not in your contact lists!",null);
+                            if(toUser.contacts.includes(sendUser) || toUser.blockedContacts.includes(sendUser)) return cb("User "+sendUser+" is always in his contact lists!",null);
+                            if(sendContact.blockedContacts.includes(username) || sendContact.blockedContacts.includes(toUser.username)) return cb("User "+sendUser+" is always in his contact lists!",null);
+                            if(sendContact.blockedContacts.includes(resToUserName)) return cb("User "+resToUserName+" included in his block list!",null);
+                            if(sendContact.blockedContacts.includes(username)) return cb( "You are included in his block list!",null);
+                            let mes = await Message.create({text: sendContact.username,sig:setGetSig([username,resToUserName]),date:dateNow,author:username,action:"shareContact"},{
+                                include:{model:User,as:"recipients"}
+                            });//add action for message and to db field
+                            await mes.addRecipient(await User.findOne({where:{username:resToUserName}}));
+                            await mes.reload();
+                            if(globalChatUsers[resToUserName]) socket.broadcast.to(globalChatUsers[resToUserName].sockedId).emit('message', mes);
+                            return cb(null,mes);
+                            break;
+                        // case "deleteMsg":
+                        //     console.log("message console deleteMsg DATA: ", consoleArr[2].split(','));
+                        //     let ids = consoleArr[2].split(',');
+                        //     //delete all messages with ids and check members array
+                        //     await Message.deleteMany({$and:[{_id:{$in:ids}},{members:{$all:[username,resToUserName]}}]});
+                        //     //delete user's messages in messageStore
+                        //     socket.emit('updateMessageStore',resToUserName,ids);
+                        //     if(globalChatUsers[resToUserName]) socket.broadcast.to(globalChatUsers[resToUserName].sockedId).emit('updateMessageStore',username,ids);
+                        //     break;
+                        // case "getAllUsersOnline":
+                        //     console.log("message console getAllUsersOnline: ");
+                        //     let usersOnLine = Object.keys(globalChatUsers).join();
+                        //     mes = { members:[username,resToUserName],
+                        //         statusCheckArr: [],
+                        //         _id: 'noId',
+                        //         sig: setGetSig([username,resToUserName]),
+                        //         text: usersOnLine,
+                        //         uthor: username,
+                        //         status: true,
+                        //         date: Date.now()};
+                        //     return cb(null,mes);
+                        //     break;
+                        // case "getMyId":
+                        //     console.log("message console getMyId: ");
+                        //     mes = { members:[username,resToUserName],
+                        //         statusCheckArr: [],
+                        //         _id: 'noId',
+                        //         sig: setGetSig([username,resToUserName]),
+                        //         text: userDB._id,
+                        //         author: username,
+                        //         status: true,
+                        //         date: Date.now()};
+                        //     return cb(null,mes);
+                        //     break;
+                        default:
+                            console.log("message console : Sorry, we are out of " + consoleArr[1] + ".");
+                    }
+                } else{
+                    if (text.length === 0 || !resToUserName) return;
+                    if (text.length >= 500) return cb("To long message!",null);
+                    let resUser = await User.findOne({where:{username:resToUserName},include:[{model:User,as:'contacts'}]});
+                    if(globalChatUsers[username].blockedContacts.includes(resToUserName)) return cb("You can not write to baned users!",null);
+                    if(!resUser.contacts.map(itm => itm.username).includes(username)) return cb("User "+resToUserName+" do not add you in his white list!",null);
+                    let {err,mes} = await Message.messageHandler({sig:setGetSig([username,resToUserName]),members:[username,resToUserName],message:{ author: username, text: text, status: false, date: dateNow}});
+                    if(err) return cb("Add message to DB err: " + err,null);
+                    //console.log('message mes:',mes);
+                    if(!globalChatUsers[resToUserName]) return cb(null,mes);
+                    let sid = globalChatUsers[resToUserName].sockedId;
+                    socket.broadcast.to(sid).emit('message', mes);
+                    cb(null,mes);
+                }
             } catch (err) {
                 console.log("message err: ",err);
                 cb(err,null);
             }
         });
         //chat message forward 2
+        //(messages id array, message receiver, message sender, message receiver User or Group, message sender User or Group)
         socket.on('messageForward', async function (ids,to,from,arrayFrowardTo,arrayFrowardFrom,cb) {
-            //make from user to user(done), from user to room, from room to user, room to room
+
             try {
                 console.log('messageForward ids: ',ids,', to: ',to,', from: ',from, ' ,arrayFrowardTo: ',arrayFrowardTo,' ,arrayFrowardFrom: ',arrayFrowardFrom);
                 // let sender = await User.findOne({where:{username:username},include:[{model: User,as:'contacts'},{model: User,as:'blockedContacts'},{model:Room,as:'rooms'}]});
@@ -706,63 +735,6 @@ module.exports = function (server) {
                 cb(err,null);
             }
         });
-        //chat message forward
-        /*socket.on('messageForward', async function (ids,to,from, cb) {
-            //make from user to user(done), user to room, room to user, room to room
-            try {
-                console.log('messageForward ids: ',ids,', to: ',to,', from: ',from);
-                if(to === from) return cb("You can not forward to same user!",null);
-                let mesArray = await Message.findAll({where:{_id:{[Op.in]:ids}}});//find all mes
-                let toUser = await User.findOne(
-                    {where:{username:to},
-                        include:[
-                            {model: User,as:'contacts'},
-                            {model: User,as:'blockedContacts'},
-                        ]});
-                let fromUser = await User.findOne(
-                    {where:{username:from},
-                        include:[
-                            {model: User,as:'contacts'},
-                            {model: User,as:'blockedContacts'},
-                        ]});
-                let toUserContacts = await toUser.reformatData();
-                if(!toUserContacts.contacts.includes(username)) return cb("User "+to+" did not add you in his white list!",null);
-                if(globalChatUsers[username].blockedContacts.includes(to)) return cb("You can not write to baned users!",null);
-                let forwardedMesArr =  [];
-                for (const item of mesArray) {
-                    let mes = await Message.create({
-                        text: item.text,
-                        sig:setGetSig([username,to]),
-                        date:item.date,
-                        author:item.author,
-                        forwardFrom:fromUser.username
-                    });
-                    forwardedMesArr.push(mes._id);
-                    await mes.addRecipient(toUser);
-                }
-                mesArray = await Message.findAll({
-                    where:{_id:{[Op.in]:forwardedMesArr}},
-                    include:{
-                        model:User,
-                        as:'recipients',
-                        attributes: ['username'],
-                        through: {attributes: ['status']}
-                    }
-                });
-
-                let promisesMes = mesArray.map(itm => itm.reformatData());
-                mesArray = await Promise.all(promisesMes);
-                mesArray.sort((a,b) => a.createdAt - b.createdAt);
-
-                if(!globalChatUsers[to]) return cb(null,mesArray);
-                let sid = globalChatUsers[to].sockedId;
-                socket.broadcast.to(sid).emit('messageForward', mesArray,username);
-                cb(null,mesArray);
-            } catch (err) {
-                console.log("messageForward err: ",err);
-                cb(err,null);
-            }
-        });*/
         //room events
         //create new room
         socket.on('createRoom', async function  (roomName,dateNow,cb) {

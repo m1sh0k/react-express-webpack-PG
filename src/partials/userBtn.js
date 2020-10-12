@@ -49,6 +49,7 @@ class UserBtn extends React.Component {
     onContextMenuResponse =(res,username)=> {
         //console.log("onContextMenuResponse res: ", res);
         switch (res){
+            case "shareContact":
             case "inviteUser":
             case "banRoomUser":
             case "unBanRoomUser":
@@ -123,6 +124,7 @@ class UserBtn extends React.Component {
                         onContextMenuResponse={this.onContextMenuResponse}
                         contextMenuLocation={this.state.contextMenuLocation}
                         userList={this.props.userList ? this.props.userList.filter(name => !itm.members.map(itm => itm.username).some(itm => itm === name)) : ""}
+                        contacts={this.props.contacts ? this.props.contacts : ""}
                         userRoomList={this.props.roomList ? itm.members.filter(itm => itm.username !== this.props.username)/*.map(itm => itm.username).filter(name => name !== this.props.username)*/ : ''}//filter added users in room
                         userBanRoomList={this.props.roomList ? itm.blockedMembers.map(itm => itm.username) : ''}
                         userNRSStatus={this.props.userNRSStatus}

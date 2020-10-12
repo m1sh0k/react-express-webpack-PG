@@ -167,6 +167,9 @@ const Message = sequelize.define('message', {
     forwardFrom:{
         type: Sequelize.STRING,
     },
+    action:{
+        type: Sequelize.STRING,
+    },
     date:{
         type: Sequelize.DATE,
         allowNull: false,

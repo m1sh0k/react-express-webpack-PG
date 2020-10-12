@@ -629,6 +629,22 @@ class Chat extends React.Component {
     onContextMenuHandler =(res,username,roomName)=>{
         let date = Date.now();
         switch (res) {
+            case "shareContact":
+                console.log("onContextMenuHandler shareContact username: ",username);
+                this.socket.emit('message', 'console: shareContact '+username,this.state.users[this.state.messageBlockHandlerId].name, date, (err, mes) => {
+                    if (err) {
+                        //console.log("sendMessage users err: ", err);
+                        this.setState({
+                            modalWindow: true,
+                            err: {message: err},
+                        })
+                    } else {
+                        this.printMessage(mes, name);
+                        this.msgCounter("users", this.getUsersIdx("users", name));
+                        this.setState({message: ''}, () => this.scrollToBottom(this.refs.InpUl));
+                    }
+                });
+                break;
             case "inviteUser":
                 //console.log("onContextMenuHandler inviteUser roomName: ",roomName,", username: ",username);
                 this.socket.emit('inviteUserToRoom',roomName,username,date,(err,data,msgData)=>{
@@ -1137,6 +1153,7 @@ class Chat extends React.Component {
                                             key={i}
                                             itm={itm}
                                             i={i}
+                                            contacts={this.state.users.map(itm => itm.name).filter(name => name !== itm.name)}
                                             getUserLog={() => this.getLog("users", itm.name, null)}
                                             inxHandler={() => this.inxHandler("users", i)}
                                             messageBlockHandlerId={this.state.messageBlockHandlerId}
@@ -1150,6 +1167,7 @@ class Chat extends React.Component {
                                             .map((itm, i) => <UserBtn
                                                     key={i}
                                                     itm={itm}
+                                                    contacts={this.state.users.map(itm => itm.name).filter(name => name !== itm.name)}
                                                     i={this.getUsersIdx("users", itm.name)}
                                                     getUserLog={() => this.getLog("users", itm.name, null)}
                                                     inxHandler={() => this.inxHandler("users", i)}
@@ -1266,7 +1284,7 @@ class Chat extends React.Component {
                                                     eStore.map((data, i) => {
                                                         return (
                                                             (data.author === this.state.user.username && data.forwardFrom == null)?(
-                                                                <li key={i} className={`right ${this.state.messageLink === data._id ? 'active' :''}`} ref={data._id}>{data.text}
+                                                                <li key={i} className={`right ${this.state.messageLink === data._id ? 'active' :''}`} ref={data._id}> {data.text}
                                                                     <div className="messageData">
                                                                         {this.state.selectMode ?
                                                                             <label htmlFor={`${data._id}`} className="label-cbx">
@@ -1282,7 +1300,6 @@ class Chat extends React.Component {
                                                                                             points="4 11 8 15 16 6"></polyline>
                                                                                     </svg>
                                                                                 </div>
-
                                                                             </label>
                                                                             : ""
                                                                         }

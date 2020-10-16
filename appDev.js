@@ -14,10 +14,10 @@ var ip = require('ip');
 var fs = require('fs');
 
 //SSL
-/*var options = {
+var options = {
     key: fs.readFileSync('./ssl/server.key', 'utf8'),//privatekey.pem
     cert: fs.readFileSync('./ssl/server.crt', 'utf8'),//certificate.pem
-};*/
+};
 
 var app = express();
 app.set('port', config.get('port'));
@@ -68,8 +68,8 @@ app.use('/*', function (req, res, next) {
 //Error Handler middleware
 errorHandler(app);
 //Create Server
-var server = http.createServer(app);
-//var server = https.createServer(options,app);
+//var server = http.createServer(app);
+var server = https.createServer(options,app);
 server.listen(config.get('port'), function(){
     console.log('Express server listening on ip:',ip.address(),',port:',config.get('port'));
 });

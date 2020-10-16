@@ -105,6 +105,11 @@ class Chat extends React.Component {
     }
 
     componentDidMount(){
+        // if ("geolocation" in navigator) {
+        //     console.log("Available");
+        // } else {
+        //     console.log("Not Available");
+        // }
         //console.log("CDM");
         //move scroll bootom
         //this.scrollToBottom(this.refs.InpUl);
@@ -329,7 +334,7 @@ class Chat extends React.Component {
     };
     //set current subscriber
     inxHandler =(a,i)=> {
-        //console.log('inxHandler arrName: ',a,", arrName inx: ", i);
+        console.log('inxHandler arrName: ',a,", arrName inx: ", i);
         this.setState({messageBlockHandlerId: i, arrayBlockHandlerId: a});
     };
     //transform data in milliseconds to string
@@ -625,11 +630,37 @@ class Chat extends React.Component {
             });
         }
     };
+
+
+
+
+
     //Right click handler
-    onContextMenuHandler =(res,username,roomName)=>{
-        let name = this.state.users[this.state.messageBlockHandlerId].name;
+    onContextMenuHandler = async (res,username,roomName)=>{
+        let name = this.state.users[this.state.messageBlockHandlerId].name;//curent user in users
         let date = Date.now();
         switch (res) {
+            case "shareLocation":
+                navigator.geolocation.getCurrentPosition((position)=> {
+                    console.log("Latitude is :", position.coords.latitude);
+                    console.log("Longitude is :", position.coords.longitude);
+                    let data = {latitude:position.coords.latitude,longitude:position.coords.longitude};
+                    this.socket.emit('message', 'console: shareLocation '+JSON.stringify(data),name, date, (err, mes) => {
+                        if (err) {
+                            //console.log("sendMessage users err: ", err);
+                            this.setState({
+                                modalWindow: true,
+                                err: {message: err},
+                            })
+                        } else {
+                            this.printMessage(mes, name);
+                            this.msgCounter("users", this.getUsersIdx("users", name));
+                            this.setState({message: ''}, () => this.scrollToBottom(this.refs.InpUl));
+                        }
+                    });
+                });
+
+                break;
             case "shareContact":
                 console.log("onContextMenuHandler shareContact username: ",username);
                 this.socket.emit('message', 'console: shareContact '+username,name, date, (err, mes) => {
@@ -1335,9 +1366,12 @@ class Chat extends React.Component {
                                                                         }}
                                                                     >
                                                                         {data.text}
-                                                                        {
-                                                                            data.action && data.action === "shareContact" ? <button>ADD</button> : ""
-                                                                         }
+                                                                        <div>
+
+                                                                            {
+                                                                                data.action && data.action === "shareContact" ? <button className="btnText" onClick={()=>this.addMe(data.text)}>ADD</button> : ""
+                                                                            }
+                                                                        </div>
                                                                         <span className="messageData">
                                                                              {this.state.selectMode ?
                                                                                  <label htmlFor={`${data._id}`} className="label-cbx">

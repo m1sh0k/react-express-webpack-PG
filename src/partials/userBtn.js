@@ -50,6 +50,7 @@ class UserBtn extends React.Component {
         //console.log("onContextMenuResponse res: ", res);
         switch (res){
             case "shareContact":
+            case "shareLocation":
             case "inviteUser":
             case "banRoomUser":
             case "unBanRoomUser":
@@ -84,7 +85,14 @@ class UserBtn extends React.Component {
                          this.props.inxHandler();
                          this.props.getUserLog();
                  }}}
-                 onContextMenu={(e)=>{e.preventDefault();this.rightClickMenuOn(itm,e); return false;}}
+                 onContextMenu={
+                     (e)=>{
+                         e.preventDefault();
+                         this.rightClickMenuOn(itm,e);
+                         this.props.inxHandler();
+                         return false;
+                     }
+                 }
                  onMouseLeave={this.rightClickMenuOnHide}
                  type="button"
                  className={`btn user ${this.props.messageBlockHandlerId === i ?"clicked ":""}`}>

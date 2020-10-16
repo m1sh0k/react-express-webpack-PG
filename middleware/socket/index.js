@@ -501,7 +501,22 @@ module.exports = function (server) {
                 if(text.split(' ')[0] === 'console:'){
                     let consoleArr = text.split(' ');
                     console.log('message console command: ', consoleArr[1],',', 'message console data: ', consoleArr[2]);
+                    let mes;
                     switch (consoleArr[1]){
+                        case "shareLocation":
+                            console.log("message console shareContact DATA: ", JSON.parse(consoleArr[2]));
+                            let coor = JSON.parse(consoleArr[2]);
+                            let resUser = await User.findOne({where:{username:resToUserName},include:[{model:User,as:'contacts'}]});
+                            if(globalChatUsers[username].blockedContacts.includes(resToUserName)) return cb("You can not write to baned users!",null);
+                            if(!resUser.contacts.map(itm => itm.username).includes(username)) return cb("User "+resToUserName+" do not add you in his white list!",null);
+                            mes = await Message.create({text: "latitude: "+coor.latitude+", longitude: "+coor.longitude,sig:setGetSig([username,resToUserName]),date:dateNow,author:username,action:"shareLocation"},{
+                                include:{model:User,as:"recipients"}
+                            });//add action for message and to db field
+                            await mes.addRecipient(await User.findOne({where:{username:resToUserName}}));
+                            await mes.reload();
+                            if(globalChatUsers[resToUserName]) socket.broadcast.to(globalChatUsers[resToUserName].sockedId).emit('message', mes);
+                            return cb(null,mes);
+                            break;
                         case "shareContact":
                             console.log("message console shareContact DATA: ", consoleArr[2]);
                             let sendUser = consoleArr[2];
@@ -522,7 +537,7 @@ module.exports = function (server) {
                             if(sendContact.blockedContacts.includes(username) || sendContact.blockedContacts.includes(toUser.username)) return cb("User "+sendUser+" is always in his contact lists!",null);
                             if(sendContact.blockedContacts.includes(resToUserName)) return cb("User "+resToUserName+" included in his block list!",null);
                             if(sendContact.blockedContacts.includes(username)) return cb( "You are included in his block list!",null);
-                            let mes = await Message.create({text: sendContact.username,sig:setGetSig([username,resToUserName]),date:dateNow,author:username,action:"shareContact"},{
+                            mes = await Message.create({text: sendContact.username,sig:setGetSig([username,resToUserName]),date:dateNow,author:username,action:"shareContact"},{
                                 include:{model:User,as:"recipients"}
                             });//add action for message and to db field
                             await mes.addRecipient(await User.findOne({where:{username:resToUserName}}));

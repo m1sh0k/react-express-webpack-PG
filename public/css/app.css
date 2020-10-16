@@ -1261,3 +1261,13 @@ footer a:active{
     position: relative;
     height: 40px;
 }
+.btnText {
+    border: none;
+    background-color: inherit;
+    text-align:left;
+    /*padding: 10px 20px;*/
+    font-size: 12px;
+    cursor: pointer;
+    display: inline-block;
+    color: dodgerblue;
+}

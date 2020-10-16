@@ -19,7 +19,7 @@ class OnContextMenu extends React.Component {
 
 
     render() {
-        console.log("OnContextMenu props: ",this.props);
+        //console.log("OnContextMenu props: ",this.props);
         const OnEnterUserList =()=>{
             return (
                 <ul className="userInvite"  >
@@ -100,6 +100,7 @@ class OnContextMenu extends React.Component {
                                     <OnEnterContacts/>
                                 </li> : ""
                         }
+                        <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("shareLocation")}}>Share location</li>
                         <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("moveOnTop")}}>Move on top</li>
                         <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("viewUserData")}}>View user data</li>
                         <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("clearChatWindow")}}>Clear chat window</li>

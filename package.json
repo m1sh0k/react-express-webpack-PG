@@ -47,11 +47,13 @@
     "express-pg-session": "^1.1.0",
     "express-session": "^1.17.1",
     "ip": "^1.1.5",
+    "leaflet": "^1.7.1",
     "match-sorter": "^2.2.3",
     "mongodb": "latest",
     "mongoose": "^5.9.20",
     "nconf": "^0.10.0",
     "pg": "^8.2.1",
+    "react-leaflet": "^2.7.0",
     "sequelize": "^6.2.3",
     "socket.io": "^2.3.0",
     "socket.io-client": "^2.3.0",
@@ -59,9 +61,12 @@
   },
   "babel": {
     "plugins": [
-      ["transform-runtime", {
-        "regenerator": true
-      }]
+      [
+        "transform-runtime",
+        {
+          "regenerator": true
+        }
+      ]
     ],
     "presets": [
       "env",

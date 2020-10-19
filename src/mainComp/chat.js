@@ -16,6 +16,7 @@ import searchImg from '../../public/img/magnifier.svg'
 import addGroupImg from '../../public/img/add-group-of-people.png'
 import addUserImg from '../../public/img/add-user-button.png'
 import OnContextMenuBtn from '../partials/onContextMenuBtn.js'
+import Map from '../partials/openStreetMap.js'
 
 
 
@@ -80,6 +81,8 @@ class Chat extends React.Component {
             promptRes:"",
             showSearch: false,
             showHistorySearch:false,
+            showMap:false,
+            location:undefined,
 
             roomPropsWindow:false,
             userPropsWindow:false,
@@ -876,10 +879,11 @@ class Chat extends React.Component {
 
     //Triggers
     hideModal =()=> {
-        this.setState({modalWindow: false,modalWindowMessage:"",err:{}});
-    };
+    this.setState({modalWindow: false,modalWindowMessage:"",err:{}});
+};
 
     hideShow = (name) => {
+        console.log('hideShow name: ',name);
         this.setState({
             [name]: !this.state[name],
             searchMess: false,
@@ -1034,6 +1038,14 @@ class Chat extends React.Component {
                 //this.msgCounter("users", this.getUsersIdx("users", username));
             }
         });
+    };
+
+    locationParse =(string)=> {
+        //latitude: 50.0094293, longitude: 36.254585
+        let data = string.split(',');
+        let loc = data.map(itm => +itm.split(':')[1]);
+        console.log('locationParse: ',loc);
+        this.setState({location:loc},()=> this.setState({showMap:true}));
     };
 
     render() {
@@ -1266,116 +1278,143 @@ class Chat extends React.Component {
                             if(eUser !== undefined && eUser.name !== undefined) {eStore = this.state.messagesStore[eUser.name]}
                             else eStore = undefined;
                             //console.log("eStore: ",eStore);
-                            return (
-                                <div className="message-block">
-                                    <div name="chatRoom" id="chatDiv">
 
-                                            <div className={`btnMessageGroup ${this.state.isChecked ? "show" : ""}`}>
-                                                {this.state.arrayBlockHandlerId === "rooms" ? "" :
-                                                    <button className="btn" data-loading-text="Deleting..." onClick={()=>this.onContextMenuBtnResponse('Delete Selected')}>Delete</button>
-                                                }
-                                                <button className="btn" data-loading-text="Forward to..." onClick={()=>this.onContextMenuBtnResponse('Forward to')}>Forward to</button>
+                                return (
+                                    <div className="message-block">
+                                        {
+                                            this.state.showMap === false ?
+                                                <div name="chatRoom" id="chatDiv">
+                                                    <div className={`btnMessageGroup ${this.state.isChecked ? "show" : ""}`}>
+                                                        {this.state.arrayBlockHandlerId === "rooms" ? "" :
+                                                            <button className="btn" data-loading-text="Deleting..."
+                                                                    onClick={() => this.onContextMenuBtnResponse('Delete Selected')}>
+                                                                Delete</button>
+                                                        }
+                                                        <button className="btn" data-loading-text="Forward to..."
+                                                                onClick={() => this.onContextMenuBtnResponse('Forward to')}>
+                                                            Forward to
+                                                        </button>
 
-                                            </div>
-                                            <div className={`forwardUserList ${this.state.isForward ? "show" : ""}`}>
-                                                <ul>
+                                                    </div>
+                                                    <div className={`forwardUserList ${this.state.isForward ? "show" : ""}`}>
+                                                        <ul>
 
-                                                    <li className="userList white">USERS</li>
-                                                    {this.state.users.map((user,i)=> <li key={i} onClick={()=> this.forwardHandler(user.name,eUser.name,'users')} className="btn user">{user.name}</li>)}
-                                                    <li className="userList white">GROUPS</li>
-                                                    {this.state.rooms.map((room,i)=> <li key={i} onClick={()=> this.forwardHandler(room.name,eUser.name,'rooms')} className="btn user">{room.name}</li>)}
-                                                </ul>
-                                            </div>
+                                                            <li className="userList white">USERS</li>
+                                                            {this.state.users.map((user, i) => <li key={i}
+                                                                                                   onClick={() => this.forwardHandler(user.name, eUser.name, 'users')}
+                                                                                                   className="btn user">{user.name}</li>)}
+                                                            <li className="userList white">GROUPS</li>
+                                                            {this.state.rooms.map((room, i) => <li key={i}
+                                                                                                   onClick={() => this.forwardHandler(room.name, eUser.name, 'rooms')}
+                                                                                                   className="btn user">{room.name}</li>)}
+                                                        </ul>
+                                                    </div>
+                                                    {a === "rooms" ?
+                                                        <div onClick={() => this.hideShow("roomPropsWindow")}>
+                                                            <ItmProps room={eUser}/>
+                                                        </div> : e !== undefined ?
+                                                            <div onClick={() => this.hideShow("userPropsWindow")}>
+                                                                <ItmProps user={eUser}/>
+                                                            </div> : ""}
+
+                                                    {this.state.showHistorySearch ?
+                                                        <div className='historySearchInpWrapper'>
+                                                            <input name="historySearchInp" ref="historySearchInp"
+                                                                   className={`form-control searchInChat ${this.state.showHistorySearch ? "show" : ""}`}
+                                                                   autoComplete="off" autoFocus placeholder="Search..."
+                                                                   onChange={ev => this.historySearch(ev.target.value, this.state.arrayBlockHandlerId === "room" ? eUser : eUser.name)}/>
+                                                            <div className='modal-main-btnRight-center'
+                                                                 onClick={() => this.hideShow("showHistorySearch")}>X
+                                                            </div>
+
+                                                        </div> : ""}
 
 
-                                        {a === "rooms" ?
-                                            <div onClick={() => this.hideShow("roomPropsWindow")}>
-                                                <ItmProps room={eUser}/>
-                                            </div> : e !== undefined ?
-                                                <div onClick={() => this.hideShow("userPropsWindow")}>
-                                                    <ItmProps user={eUser}/>
-                                                </div> : ""}
-
-                                        {this.state.showHistorySearch ?
-                                            <div className='historySearchInpWrapper'>
-                                                <input name="historySearchInp" ref="historySearchInp"
-                                                       className={`form-control searchInChat ${this.state.showHistorySearch ? "show" : ""}`}
-                                                       autoComplete="off" autoFocus placeholder="Search..."
-                                                       onChange={ev => this.historySearch(ev.target.value,this.state.arrayBlockHandlerId === "room" ? eUser : eUser.name)}/>
-                                                    <div className='modal-main-btnRight-center' onClick={()=> this.hideShow("showHistorySearch")}>X</div>
-
-                                            </div> : ""}
-
-
-
-                                        <ul onScroll={(evn)=>this.onScrollHandler(evn,eUser.name,a,e)}
-                                            onContextMenu={(e)=>{e.preventDefault();this.rightClickMenuOn(e); return false;}}
-                                            name="InpUl" className="chat-list" ref="InpUl">
-                                            {
-                                                (eUser && eStore) ? (
-                                                    eStore.map((data, i) => {
-                                                        return (
-                                                            (data.author === this.state.user.username && data.forwardFrom == null)?(
-                                                                <li key={i} className={`right ${this.state.messageLink === data._id ? 'active' :''}`} ref={data._id}> {data.text}
-                                                                    <div className="messageData">
-                                                                        {this.state.selectMode ?
-                                                                            <label htmlFor={`${data._id}`} className="label-cbx">
-                                                                                <input id={`${data._id}`} type="checkbox" name="msgCB" className="invisible"
-                                                                                       onChange={ev => (this.checkboxMsg(data._id))}
-                                                                                />
-                                                                                <div className="checkbox">
-                                                                                    <svg width="10px" height="10px"
-                                                                                         viewBox="0 0 20 20">
-                                                                                        <path
-                                                                                            d="M3,1 L17,1 L17,1 C18.1045695,1 19,1.8954305 19,3 L19,17 L19,17 C19,18.1045695 18.1045695,19 17,19 L3,19 L3,19 C1.8954305,19 1,18.1045695 1,17 L1,3 L1,3 C1,1.8954305 1.8954305,1 3,1 Z"></path>
-                                                                                        <polyline
-                                                                                            points="4 11 8 15 16 6"></polyline>
-                                                                                    </svg>
-                                                                                </div>
-                                                                            </label>
-                                                                            : ""
-                                                                        }
-                                                                        <div className='shortMessageInfo'>
-                                                                            {data.author}<span className="messageTime">{this.dateToString(data.date)}</span>
-                                                                            <span className="messageTime">
+                                                    <ul onScroll={(evn) => this.onScrollHandler(evn, eUser.name, a, e)}
+                                                        onContextMenu={(e) => {
+                                                            e.preventDefault();
+                                                            this.rightClickMenuOn(e);
+                                                            return false;
+                                                        }}
+                                                        name="InpUl" className="chat-list" ref="InpUl">
+                                                        {
+                                                            (eUser && eStore) ? (
+                                                                eStore.map((data, i) => {
+                                                                    return (
+                                                                        (data.author === this.state.user.username && data.forwardFrom == null) ? (
+                                                                            <li key={i}
+                                                                                className={`right ${this.state.messageLink === data._id ? 'active' : ''}`}
+                                                                                ref={data._id}> {data.text}
+                                                                                <div className="messageData">
+                                                                                    {this.state.selectMode ?
+                                                                                        <label htmlFor={`${data._id}`}
+                                                                                               className="label-cbx">
+                                                                                            <input id={`${data._id}`}
+                                                                                                   type="checkbox" name="msgCB"
+                                                                                                   className="invisible"
+                                                                                                   onChange={ev => (this.checkboxMsg(data._id))}
+                                                                                            />
+                                                                                            <div className="checkbox">
+                                                                                                <svg width="10px" height="10px"
+                                                                                                     viewBox="0 0 20 20">
+                                                                                                    <path
+                                                                                                        d="M3,1 L17,1 L17,1 C18.1045695,1 19,1.8954305 19,3 L19,17 L19,17 C19,18.1045695 18.1045695,19 17,19 L3,19 L3,19 C1.8954305,19 1,18.1045695 1,17 L1,3 L1,3 C1,1.8954305 1.8954305,1 3,1 Z"></path>
+                                                                                                    <polyline
+                                                                                                        points="4 11 8 15 16 6"></polyline>
+                                                                                                </svg>
+                                                                                            </div>
+                                                                                        </label>
+                                                                                        : ""
+                                                                                    }
+                                                                                    <div className='shortMessageInfo'>
+                                                                                        {data.author}<span
+                                                                                        className="messageTime">{this.dateToString(data.date)}</span>
+                                                                                        <span className="messageTime">
                                                                                {
-                                                                                   data.recipients.length === 1 ? data.recipients[0].status === true ? " R":"" :
+                                                                                   data.recipients.length === 1 ? data.recipients[0].status === true ? " R" : "" :
                                                                                        data.recipients.length === data.recipients.filter(itm => itm.status === true).length ? " R" :
-                                                                                           data.recipients.map((itm,i) => itm.status === true ? <span key={i} className="messageTime">{itm.username}</span> : "")
+                                                                                           data.recipients.map((itm, i) => itm.status === true ?
+                                                                                               <span key={i}
+                                                                                                     className="messageTime">{itm.username}</span> : "")
                                                                                }
                                                                             </span>
-                                                                            {data.forwardFrom == null ? "" : " Forwarded from: " + data.forwardFrom }
-                                                                        </div>
-                                                                    </div>
-                                                                </li>
-                                                            ):(
-                                                                <VisibilitySensor
-                                                                    key={i+"VisibilitySensor"}
-                                                                    containment={this.refs.InpUl}
-                                                                    onChange={
-                                                                        (inView)=> inView &&
-                                                                            data.recipients.some(itm => itm.username === this.state.user.username) &&
-                                                                            !data.recipients.find(itm => itm.username === this.state.user.username).status ? this.setAsRead(eUser.name,data._id) : ""
-                                                                    }
-                                                                >
-                                                                    <li className={`left ${this.state.messageLink === data._id ? 'active' :''}`}  key={i} ref={data._id}
-                                                                        onClick={()=>{
-                                                                            data.recipients.some(itm => itm.username === this.state.user.username) &&
-                                                                            !data.recipients.find(itm => itm.username === this.state.user.username).status  ?
-                                                                                this.setAsRead(eUser.name,data._id) : ""
-                                                                        }}
-                                                                    >
-                                                                        {data.text}
-                                                                        <div>
-
-                                                                            {
-                                                                                data.action && data.action === "shareContact" ? <button className="btnText" onClick={()=>this.addMe(data.text)}>ADD</button> : ""
-                                                                            }
-                                                                        </div>
-                                                                        <span className="messageData">
+                                                                                        {data.forwardFrom == null ? "" : " Forwarded from: " + data.forwardFrom }
+                                                                                    </div>
+                                                                                </div>
+                                                                            </li>
+                                                                        ) : (
+                                                                            <VisibilitySensor
+                                                                                key={i + "VisibilitySensor"}
+                                                                                containment={this.refs.InpUl}
+                                                                                onChange={
+                                                                                    (inView) => inView &&
+                                                                                    data.recipients.some(itm => itm.username === this.state.user.username) &&
+                                                                                    !data.recipients.find(itm => itm.username === this.state.user.username).status ? this.setAsRead(eUser.name, data._id) : ""
+                                                                                }
+                                                                            >
+                                                                                <li className={`left ${this.state.messageLink === data._id ? 'active' : ''}`}
+                                                                                    key={i} ref={data._id}
+                                                                                    onClick={() => {
+                                                                                        data.recipients.some(itm => itm.username === this.state.user.username) &&
+                                                                                        !data.recipients.find(itm => itm.username === this.state.user.username).status ?
+                                                                                            this.setAsRead(eUser.name, data._id) : ""
+                                                                                    }}
+                                                                                >
+                                                                                    {data.text}
+                                                                                    <div>
+                                                                                        {
+                                                                                            data.action && data.action === "shareContact" ? <button className="btnText" onClick={() => this.addMe(data.text)}>ADD</button> :
+                                                                                                data.action && data.action === "shareLocation" ?
+                                                                                                    <button className="btnText" onClick={() => this.locationParse(data.text)}>SHOW</button> : ""
+                                                                                        }
+                                                                                    </div>
+                                                                                    <span className="messageData">
                                                                              {this.state.selectMode ?
-                                                                                 <label htmlFor={`${data._id}`} className="label-cbx">
-                                                                                     <input id={`${data._id}`} type="checkbox" name="msgCB" className="invisible"
+                                                                                 <label htmlFor={`${data._id}`}
+                                                                                        className="label-cbx">
+                                                                                     <input id={`${data._id}`}
+                                                                                            type="checkbox" name="msgCB"
+                                                                                            className="invisible"
                                                                                             onChange={ev => (this.checkboxMsg(data._id))}
                                                                                      />
                                                                                      <div className="checkbox">
@@ -1390,53 +1429,66 @@ class Chat extends React.Component {
                                                                                  </label>
                                                                                  : ""
                                                                              }
-                                                                            <div className='shortMessageInfo'>
+                                                                                        <div className='shortMessageInfo'>
                                                                                   {data.author}
-                                                                                <span className="messageTime">{this.dateToString(data.date)}</span>
-                                                                                {
-                                                                                    data.recipients.length === 1 ? data.recipients[0].status === true ? "":" UR" :
-                                                                                        data.recipients.length === data.recipients.filter(itm => itm.status === true).length ? " R" :
-                                                                                            data.recipients.map((itm,i) => itm.status === true ? <span key={i} className="messageTime">{itm.username}</span> : "")
-                                                                                }
-                                                                                {data.forwardFrom == null ? "" : " Forwarded from: " + data.forwardFrom }
+                                                                                            <span
+                                                                                                className="messageTime">{this.dateToString(data.date)}</span>
+                                                                                            {
+                                                                                                data.recipients.length === 1 ? data.recipients[0].status === true ? "" : " UR" :
+                                                                                                    data.recipients.length === data.recipients.filter(itm => itm.status === true).length ? " R" :
+                                                                                                        data.recipients.map((itm, i) => itm.status === true ?
+                                                                                                            <span key={i}
+                                                                                                                  className="messageTime">{itm.username}</span> : "")
+                                                                                            }
+                                                                                            {data.forwardFrom == null ? "" : " Forwarded from: " + data.forwardFrom }
                                                                             </div>
                                                                         </span>
-                                                                    </li>
-                                                                </VisibilitySensor >
+                                                                                </li>
+                                                                            </VisibilitySensor >
 
-                                                            )
-                                                        )
-                                                    })
-                                                ) : ("")
-                                            }
-                                        </ul>
+                                                                        )
+                                                                    )
+                                                                })
+                                                            ) : ("")
+                                                        }
+                                                    </ul>
 
-                                        <form onSubmit={(ev) => {
-                                                ev.preventDefault();
-                                                //ev.stopPropagation();
-                                                this.sendMessage(eUser.name)
-                                           }} name="chatRoomForm" className="writeMessWrapp">
-                                            <div className="input-group writeMess">
-                                                        <input name="formInp" className="form-control writeChatMess"
-                                                                 // autoComplete="off"
-                                                                  autoFocus placeholder="Message..."
-                                                                  value={this.state.message}
-                                                                  onChange={ev => (this.typing(eUser.name, ev))}
+                                                    <form onSubmit={(ev) => {
+                                                        ev.preventDefault();
+                                                        //ev.stopPropagation();
+                                                        this.sendMessage(eUser.name)
+                                                    }} name="chatRoomForm" className="writeMessWrapp">
+                                                        <div className="input-group writeMess">
+                                                            <input name="formInp" className="form-control writeChatMess"
+                                                                // autoComplete="off"
+                                                                   autoFocus placeholder="Message..."
+                                                                   value={this.state.message}
+                                                                   onChange={ev => (this.typing(eUser.name, ev))}
 
-                                                        />
-                                                {
-                                                    (a !== "blockedContacts") ?
-                                                        <button type='submit'
-                                                                name="msgBtn"  className="btn">
-                                                            SEND</button> :
-                                                        <button onClick={() => this.resAddMe(eUser.name)} name="msgBtn"
-                                                                type="button" className="btn">ALLOW USER</button>
-                                                }
-                                            </div>
-                                        </form>
+                                                            />
+                                                            {
+                                                                (a !== "blockedContacts") ?
+                                                                    <button type='submit'
+                                                                            name="msgBtn" className="btn">
+                                                                        SEND</button> :
+                                                                    <button onClick={() => this.resAddMe(eUser.name)}
+                                                                            name="msgBtn"
+                                                                            type="button" className="btn">ALLOW USER</button>
+                                                            }
+                                                        </div>
+                                                    </form>
+                                                </div> :
+                                                <Map
+                                                    location={this.state.location}
+                                                    handleClose={()=>this.hideShow("showMap")}
+                                                />
+
+
+
+                                        }
                                     </div>
-                                </div>
-                            );
+                                );
+
                         })(this.state.arrayBlockHandlerId, this.state.messageBlockHandlerId)
                     }
 

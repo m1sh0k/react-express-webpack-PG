@@ -264,6 +264,7 @@ class Chat extends React.Component {
 
     scrollToBottom = (element) => {
         //console.log("this.state.scrollTopMax: ",this.state.scrollTopMax, " ,element.scrollHeight: ",element.scrollHeight);
+        if(!element) return;
         element.scrollTop = element.scrollTopMax - this.state.scrollTopMax || element.scrollHeight;
     };
 
@@ -338,7 +339,8 @@ class Chat extends React.Component {
     //set current subscriber
     inxHandler =(a,i)=> {
         console.log('inxHandler arrName: ',a,", arrName inx: ", i);
-        this.setState({messageBlockHandlerId: i, arrayBlockHandlerId: a});
+        //this.setState({messageBlockHandlerId: i, arrayBlockHandlerId: a});
+        this.setState({showMap:false},()=>this.setState({messageBlockHandlerId: i, arrayBlockHandlerId: a}));
     };
     //transform data in milliseconds to string
     dateToString =(dateMlS)=> {
@@ -1149,24 +1151,27 @@ class Chat extends React.Component {
                                     : ""}
                             </form>
 
+                            {
+                                !this.state.showMap ?
+                                    <div className="userList btnList">
+                                        <button onClick={() => this.toggleSearch()} name="msgBtn" type="button"
+                                                className="btn search">
+                                            <img src={searchImg} alt="search"/>
+                                            <span className="tooltiptext">Search</span>
+                                        </button>
 
-                            <div className="userList btnList">
-                                <button onClick={() => this.toggleSearch()} name="msgBtn" type="button"
-                                        className="btn search">
-                                    <img src={searchImg} alt="search"/>
-                                    <span className="tooltiptext">Search</span>
-                                </button>
+                                        <button onClick={() => this.hideShow("promptCreateRoom")} name="msgBtn" type="button" className="btn">
+                                            <img src={addGroupImg} alt="add user"/>
+                                            <span className="tooltiptext">Create group</span>
+                                        </button>
 
-                                <button onClick={() => this.hideShow("promptCreateRoom")} name="msgBtn" type="button" className="btn">
-                                    <img src={addGroupImg} alt="add user"/>
-                                    <span className="tooltiptext">Create group</span>
-                                </button>
+                                        <button onClick={() => this.hideShow("promptSearchUser")} name="msgBtn" type="button" className="btn">
+                                            <img src={addUserImg} alt="add user"/>
+                                            <span className="tooltiptext">Add user</span>
+                                        </button>
+                                    </div> : ""
+                            }
 
-                                <button onClick={() => this.hideShow("promptSearchUser")} name="msgBtn" type="button" className="btn">
-                                    <img src={addUserImg} alt="add user"/>
-                                    <span className="tooltiptext">Add user</span>
-                                </button>
-                            </div>
 
 
                             {this.state.textSearchMess.length > 0 && this.state.showHistorySearch && this.state.messSearchArr.length >= 1 ?

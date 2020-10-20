@@ -1271,3 +1271,7 @@ footer a:active{
     display: inline-block;
     color: dodgerblue;
 }
+.leaflet-container {
+    height: 800px;
+    width: 100%;
+}

@@ -321,7 +321,7 @@ module.exports = function (server) {
             try {
                 console.log("deleteUser name:" ,data);
                 let {err:errRG, user:userRG} = await User.userRFAL(username,data.name);//remove from contacts & blockedContact
-                if(errRG) return cb("Delete user filed. DB err: " + userRG.err,null);
+                if(errRG) return cb("Delete user filed. DB err: " + errRG,null);
                 //update globalChatUsers[username] data
                 globalChatUsers[username].contacts = userRG.contacts;
                 globalChatUsers[username].blockedContacts = userRG.blockedContacts;

@@ -419,9 +419,12 @@ User.userRFAL = async function (reqUser,contact) {//RemoveFromAllList
     console.log('userRFAL userReq: ',reqUser,",","moving contact: ",contact);
     try {
         user = await User.findOne({where:{username:reqUser}});
+        let contactDell = await User.findOne({where:{username:contact}});
+        if(!contactDell) return ({err:"No user name "+contactDell+" found.",user:null});
         if(!user) return ({err:"No user name "+reqUser+" found.",user:null});
-        await user.removeContacts(contact);
-        user = await user.removeBlockedContacts(contact);
+        await user.removeContacts(contactDell);
+        await user.removeBlockedContacts(contactDell);
+        await user.reload();
         return {err:null,user:user};
     } catch(err) {
         console.log('userRFAL err: ',err);

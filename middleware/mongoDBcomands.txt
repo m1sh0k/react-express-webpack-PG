@@ -1,5 +1,0 @@
-cmd from folder mongo >>> mongo.exe
-use temp --use db temp
-show dbs --show all enabl db
-db.users.find() --show all documets in db
-db.Collection.remove({"_id": ObjectId("5a840ae82e45cc0bf0a96384")}, 1)

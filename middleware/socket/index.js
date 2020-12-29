@@ -497,19 +497,19 @@ module.exports = function (server) {
                 switch (itmType) {
                     case "users":
                         reqUser = await User.findOne({where:{username:itmName}});//set user message status
-                        if(globalChatUsers[itmName]) socket.broadcast.to(globalChatUsers[itmName].sockedId).emit('updateMsgStatus',username,idx,null);
+                        if(globalChatUsers[itmName]) socket.broadcast.to(globalChatUsers[itmName].sockedId).emit('updateMsgStatus',itmType,username,idx,null);
                         break;
                     case "rooms":
                         reqRoom = await Room.findOne({where:{name:itmName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});//set room message status
                         reqRoom = await reqRoom.reformatData();
                         for(let name of reqRoom.members) {
-                            if(globalChatUsers[name] && name !== username) socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateMsgStatus',itmName,idx,username);
+                            if(globalChatUsers[name] && name !== username) socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateMsgStatus',itmType,itmName,idx,username);
                         }
                         break;
                     case "channels":
                         reqChannel = await Channel.findOne({where:{name:itmName},include:[{model:User,as:'members'}]});//set channel message status
                         for(let name of reqChannel.members) {
-                            if(globalChatUsers[name] && name !== username) socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateMsgStatus',itmName,idx,username);
+                            if(globalChatUsers[name] && name !== username) socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateMsgStatus',itmType,itmName,idx,username);
                         }
                         break;
                 }
@@ -608,40 +608,6 @@ module.exports = function (server) {
                             if(globalChatUsers[resToUserName]) socket.broadcast.to(globalChatUsers[resToUserName].sockedId).emit('message', mes);
                             return cb(null,mes);
                             break;
-                        // case "deleteMsg":
-                        //     console.log("message console deleteMsg DATA: ", consoleArr[2].split(','));
-                        //     let ids = consoleArr[2].split(',');
-                        //     //delete all messages with ids and check members array
-                        //     await Message.deleteMany({$and:[{_id:{$in:ids}},{members:{$all:[username,resToUserName]}}]});
-                        //     //delete user's messages in messageStore
-                        //     socket.emit('updateMessageStore',resToUserName,ids);
-                        //     if(globalChatUsers[resToUserName]) socket.broadcast.to(globalChatUsers[resToUserName].sockedId).emit('updateMessageStore',username,ids);
-                        //     break;
-                        // case "getAllUsersOnline":
-                        //     console.log("message console getAllUsersOnline: ");
-                        //     let usersOnLine = Object.keys(globalChatUsers).join();
-                        //     mes = { members:[username,resToUserName],
-                        //         statusCheckArr: [],
-                        //         _id: 'noId',
-                        //         sig: setGetSig([username,resToUserName]),
-                        //         text: usersOnLine,
-                        //         uthor: username,
-                        //         status: true,
-                        //         date: Date.now()};
-                        //     return cb(null,mes);
-                        //     break;
-                        // case "getMyId":
-                        //     console.log("message console getMyId: ");
-                        //     mes = { members:[username,resToUserName],
-                        //         statusCheckArr: [],
-                        //         _id: 'noId',
-                        //         sig: setGetSig([username,resToUserName]),
-                        //         text: userDB._id,
-                        //         author: username,
-                        //         status: true,
-                        //         date: Date.now()};
-                        //     return cb(null,mes);
-                        //     break;
                         default:
                             console.log("message console : Sorry, we are out of " + consoleArr[1] + ".");
                     }
@@ -709,7 +675,7 @@ module.exports = function (server) {
                                 forwardedMesArr = await reformatDataArray(forwardedMesArr);
 
                                 if(!globalChatUsers[to]) return cb(null,forwardedMesArr);
-                                socket.broadcast.to(globalChatUsers[to].sockedId).emit('messageForward', forwardedMesArr,username);
+                                socket.broadcast.to(globalChatUsers[to].sockedId).emit('messageForward', forwardedMesArr,"users",username);
                                 cb(null,forwardedMesArr);
                                 break;
                             case "rooms":
@@ -736,7 +702,7 @@ module.exports = function (server) {
                                 forwardedMesArr = await reformatDataArray(forwardedMesArr);
 
                                 for (const name of toRoomData.members) {
-                                    if(globalChatUsers[name]) socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageForward', forwardedMesArr,null,to);
+                                    if(globalChatUsers[name]) socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageForward', forwardedMesArr,"rooms",to);
                                 }
                                 cb(null,forwardedMesArr);
                                 break;
@@ -770,7 +736,7 @@ module.exports = function (server) {
                                 forwardedMesArr = await reformatDataArray(forwardedMesArr);
 
                                 if(!globalChatUsers[to]) return cb(null,forwardedMesArr);
-                                socket.broadcast.to(globalChatUsers[to].sockedId).emit('messageForward', forwardedMesArr,username);
+                                socket.broadcast.to(globalChatUsers[to].sockedId).emit('messageForward', forwardedMesArr,"users",username);
                                 cb(null,forwardedMesArr);
                                 break;
                             case "rooms":
@@ -797,7 +763,7 @@ module.exports = function (server) {
                                 forwardedMesArr = await reformatDataArray(forwardedMesArr);
 
                                 for (const name of toRoomData.members) {
-                                    if(globalChatUsers[name]) socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageForward', forwardedMesArr,null,to);
+                                    if(globalChatUsers[name]) socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageForward', forwardedMesArr,"rooms",to);
                                 }
                                 cb(null,forwardedMesArr);
                                 break;

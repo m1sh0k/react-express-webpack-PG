@@ -66,7 +66,11 @@ class Chat extends React.Component {
             foundChannels: [],
             searchInput:false,
 
-            messagesStore: {},
+            messagesStore: {
+                contacts:{},
+                rooms:{},
+                channels:{}
+            },
             searchMess: false,
             messSearchArr: [],
             textSearchMess: '',
@@ -134,14 +138,22 @@ class Chat extends React.Component {
         this.socket = socket
             //.emit('sayOnLine')
 
-            .on('messageForward', (mesArray,username,roomname)=>{
-                if(username){
-                    mesArray.forEach(itm => this.printMessage(itm, username));
-                    this.msgCounter("contacts",this.getUsersIdx("contacts",username));
-                }
-                if(roomname){
-                    mesArray.forEach(itm => this.printMessage(itm, roomname));
-                    this.msgCounter("rooms",this.getUsersIdx("rooms",roomname));
+            .on('messageForward', (mesArray,itmType,itmName)=>{
+                switch (itmType) {
+                    case "users":
+                        mesArray.forEach(itm => this.printMessage(itm,"contacts", itmName));
+                        this.msgCounter("contacts",itmName);
+                        break;
+                    case "rooms":
+                        mesArray.forEach(itm => this.printMessage(itm,"rooms", itmName));
+                        this.msgCounter("rooms",itmName);
+                        break;
+                    case "channels":
+                        mesArray.forEach(itm => this.printMessage(itm,"channels", itmName));
+                        this.msgCounter("channels",itmName);
+                        break;
+                    default:
+                        console.log("messageForward : Sorry, we are out of " + itmType + ".");
                 }
             })
 
@@ -158,23 +170,31 @@ class Chat extends React.Component {
                     channels:userData.channels
                 });
             })
-            .on('updateMsgStatus',(itmName,idx,userName)=>{//userName for room set status
-                console.log("updateMsgData itmName: ",itmName," ,id: ",idx," ,userName: ",userName);
-                if(!itmName || !idx) return;
+            .on('updateMsgStatus',(itmType,itmName,idx,userName)=>{//userName for room || channel set status
+                if(!itmType || !itmName || !idx) return;
                 if(itmName === this.state.user.username) return;
+                console.log("updateMsgData itmName: ",itmName," ,id: ",idx," ,itmType: ",itmType);
                 let messagesStore = this.state.messagesStore;
-                if(!messagesStore[itmName]) return;
-
-                if(userName) {
-                    messagesStore[itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === userName).status = true;
-                } else messagesStore[itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === itmName).status = true;
+                switch (itmType) {
+                    case "users":
+                        messagesStore["contacts"][itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === itmName).status = true;
+                        break;
+                    case "rooms":
+                        messagesStore["rooms"][itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === userName).status = true;
+                        break;
+                    case "channels":
+                        messagesStore["channels"][itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === userName).status = true;
+                        break;
+                    default:
+                        console.log("updateMsgStatus : Sorry, we are out of " + itmType + ".");
+                }
                 this.setState({messagesStore});
             })
-            .on('updateMessageStore',(username,ids)=> {
+            .on('updateMessageStore',(username,ids)=> {//only for contacts, deleting messages from history
                 console.log("updateMessageStore username: ", username, " ,mes ids: ", ids);
-                if(!this.state.messagesStore[username]) return;
+                if(!this.state.messagesStore["contacts"][username]) return;
                 this.setState(state => {
-                    state.messagesStore[username] = state.messagesStore[username].filter((itm) => !ids.includes(itm._id));
+                    state.messagesStore["contacts"][username] = state.messagesStore["contacts"][username].filter((itm) => !ids.includes(itm._id));
                     return state
                 });
 
@@ -212,14 +232,20 @@ class Chat extends React.Component {
             .on('message', (data)=> {
                 //message receiver
                 console.log('message receiver: ',data);
-                this.printMessage(data,data.author);
-                this.msgCounter("contacts",this.getUsersIdx("contacts",data.author));
+                this.printMessage(data,"contacts",data.author);
+                this.msgCounter("contacts",data.author);
             })
             .on('messageRoom',(data)=>{
                 //messageRoom receiver
                 console.log('messageRoom receiver: ',data);
-                this.printMessage(data,data.sig);
-                this.msgCounter("rooms",this.getUsersIdx("rooms",data.sig));
+                this.printMessage(data,"rooms",data.sig);
+                this.msgCounter("rooms",data.sig);
+            })
+            .on('messageChannel',(data)=>{
+                //messageChannel receiver
+                console.log('messageRoom receiver: ',data);
+                this.printMessage(data,"channels",data.sig);
+                this.msgCounter("channels",data.sig);
             })
             .on('typing', (username)=> {
                 //receiver
@@ -285,11 +311,11 @@ class Chat extends React.Component {
     getLog =(a,e,reqMesCountCb)=>{
         if(this.state.arrayBlockHandlerId === a && this.state.messageBlockHandlerId === this.getUsersIdx(a,e) && reqMesCountCb === null) return;
         let messagesStore = this.state.messagesStore;
-        if(!messagesStore[e]) messagesStore[e] = [];
-        if(messagesStore[e].length >= 15 && reqMesCountCb === null) return;
+        if(!messagesStore[a][e]) messagesStore[a][e] = [];
+        if(messagesStore[a][e].length >= 15 && reqMesCountCb === null) return;
         if(!reqMesCountCb) reqMesCountCb = 15;
         //console.log("getLog a,e: ",a,e);
-        if(messagesStore[e].length === this.state[a][this.getUsersIdx(a,e)].allMesCounter) return;
+        if(messagesStore[a][e].length === this.state[a][this.getUsersIdx(a,e)].allMesCounter) return;
         //console.log("getLog: ",a," ,",e," ,",reqMesCountCb);
         this.socket.emit(a === "rooms" ? 'getRoomLog' : a === "channels" ? 'getChannelLog' : 'getUserLog',e,reqMesCountCb,null,(err,arr)=>{
             //console.log("getUserLog arr: ",arr," ,err: ",err);
@@ -299,7 +325,7 @@ class Chat extends React.Component {
                     err:{message:err},
                 })
             }else {
-                messagesStore[e] = arr;
+                messagesStore[a][e] = arr;
                 this.setState({messagesStore},()=>this.scrollToBottom(this.refs.InpUl));
             }
         });
@@ -346,23 +372,21 @@ class Chat extends React.Component {
         if(name) {this.socket.emit('typing', name)}
     };
     //unread msgs counter
-    msgCounter =(a,i,unreadFlag)=> {
+    msgCounter =(a,e,unreadFlag)=> {
         //console.log("msgCounter a: ",a," ,i: ",i);
-        let current = this.state[a][i];
+        let current = this.state[a][e];
         //console.log("msgCounter current: ",current);
-        let currentUserMes = this.state.messagesStore[current.name];
+        let currentUserMes = this.state.messagesStore[a][e];
         if(!unreadFlag) current.allMesCounter = current.allMesCounter + 1;
         let unReadMes = currentUserMes.filter(itm => itm.author !== this.state.user.username &&
                             itm.recipients.some(itm => itm.username === this.state.user.username) &&
                             !itm.recipients.find(itm => itm.username === this.state.user.username).status).length;
-        //let unReadMes = currentUserMes.filter(itm => itm.author !== this.state.user.username && itm.recipients.find(itm => itm.username === this.state.user.username).status === false).length;
         current.msgCounter = unReadMes;
         this.setState({current});
     };
     //set current subscriber
     inxHandler =(a,i)=> {
         console.log('inxHandler arrName: ',a,", arrName inx: ", i);
-        //this.setState({messageBlockHandlerId: i, arrayBlockHandlerId: a});
         this.setState({showMap:false},()=>this.setState({messageBlockHandlerId: i, arrayBlockHandlerId: a}));
     };
     //transform data in milliseconds to string
@@ -380,23 +404,6 @@ class Chat extends React.Component {
         let date = Date.now();
 
             switch (this.state.arrayBlockHandlerId) {
-                case "rooms":
-                    //console.log("sendMessage rooms name: ", name);
-                    this.socket.emit('messageRoom', this.state.message, name, date, (err, mes) => {//This name means Group Name
-                        if (err) {
-                            //console.log("sendMessage room err: ", err);
-                            this.setState({
-                                modalWindow: true,
-                                err: {message: err},
-                            })
-                        } else {
-                            console.log("sendMessage room: ", mes);
-                            this.printMessage(mes, name);
-                            this.msgCounter("rooms", this.getUsersIdx("rooms", name));
-                            this.setState({message: ''}, () => this.scrollToBottom(this.refs.InpUl));
-                        }
-                    });
-                    break;
                 case "contacts":
                     //console.log("sendMessage contacts");
                     this.socket.emit('message', this.state.message, name, date, (err, mes) => {//This name means User Name
@@ -407,14 +414,49 @@ class Chat extends React.Component {
                                 err: {message: err},
                             })
                         } else {
-                            this.printMessage(mes, name);
-                            this.msgCounter("contacts", this.getUsersIdx("contacts", name));
+                            this.printMessage(mes, "contacts",name);
+                            this.msgCounter("contacts", name);
                             this.setState({message: ''}, () => this.scrollToBottom(this.refs.InpUl));
                         }
                     });
                     break;
+                case "rooms":
+                    //console.log("sendMessage rooms name: ", name);
+                    this.socket.emit('messageRoom', this.state.message, name, date, (err, mes) => {//This name means Group Name
+                        if (err) {
+                            //console.log("sendMessage room err: ", err);
+                            this.setState({
+                                modalWindow: true,
+                                err: {message: err},
+                            })
+                        } else {
+                            //console.log("sendMessage room: ", mes);
+                            this.printMessage(mes, "rooms", name);
+                            this.msgCounter("rooms",  name);
+                            this.setState({message: ''}, () => this.scrollToBottom(this.refs.InpUl));
+                        }
+                    });
+                    break;
+                case "channels":
+                    //console.log("sendMessage channels name: ", name);
+                    this.socket.emit('messageChannel', this.state.message, name, date, (err, mes) => {//This name means Channel Name
+                        if (err) {
+                            //console.log("sendMessage channel err: ", err);
+                            this.setState({
+                                modalWindow: true,
+                                err: {message: err},
+                            })
+                        } else {
+                            //console.log("sendMessage channel: ", mes);
+                            this.printMessage(mes, "channels", name);
+                            this.msgCounter("channels",  name);
+                            this.setState({message: ''}, () => this.scrollToBottom(this.refs.InpUl));
+                        }
+                    });
+                    break;
+
                 default:
-                    //console.log("sendMessage: Sorry, we are out of " + res + ".");
+                    console.log("sendMessage: Sorry, we are out of " + res + ".");
             }
 
     };
@@ -423,10 +465,10 @@ class Chat extends React.Component {
         return this.state[a].map((itm)=>{return itm.name;}).indexOf(i);
     };
     //pushing incoming msgs
-    printMessage =(data,name)=> {
+    printMessage =(data,itmType,itmName)=> {
         let messagesStore = this.state.messagesStore;
-        if(!messagesStore[name]) messagesStore[name] = [];
-        messagesStore[name].push(data);
+        if(!messagesStore[itmType][itmName]) messagesStore[itmType][itmName] = [];
+        messagesStore[itmType][itmName].push(data);
         this.setState({messagesStore});
     };
 
@@ -511,12 +553,9 @@ class Chat extends React.Component {
         const elemToScroll = this.refs[mesId];
         if(elemToScroll === undefined) {
             let messagesStore = this.state.messagesStore;
-            let itmName;
-            if (this.state.arrayBlockHandlerId === "rooms") {
-                itmName = this.state.rooms[this.state.messageBlockHandlerId].name;
-            }else itmName = this.state.contacts[this.state.messageBlockHandlerId].name;
-
-            this.socket.emit(this.state.arrayBlockHandlerId === "rooms" ? 'getRoomLog' : 'getUserLog',itmName,null,mesId,(err,arr)=>{
+            let itmName = this.state[this.state.arrayBlockHandlerId][this.state.messageBlockHandlerId]
+            let a = this.state.arrayBlockHandlerId;
+            this.socket.emit(a === "rooms" ? 'getRoomLog' : a === "channels" ? 'getChannelLog' : 'getUserLog',itmName,null,mesId,(err,arr)=>{
                 console.log("getUserLog arr: ",arr," ,err: ",err);
                 if(err) {
                     this.setState({
@@ -524,7 +563,7 @@ class Chat extends React.Component {
                         err:{message:err},
                     })
                 }else {
-                    messagesStore[itmName] = arr;
+                    messagesStore[a][itmName] = arr;
                     this.setState({messagesStore}, ()=> this.changeScrollPos(mesId))
                 }
             });
@@ -575,7 +614,7 @@ class Chat extends React.Component {
                         confirmMessage:"",
                         reqAddMeName:"",
                         foundContacts:[]
-                    },()=>this.printMessage(msgData,this.state.reqAddMeName));
+                    },()=>this.printMessage(msgData,"contacts",this.state.reqAddMeName));
                 }
                 this.refs["nameSearchInp"].value = "";
             })
@@ -611,7 +650,7 @@ class Chat extends React.Component {
                         resAddMeAddMeName:"",
                         confirmMessage:""
                     });
-                    this.printMessage(msgData,addUserName);
+                    this.printMessage(msgData,"contacts",addUserName);
                 }
             })
         }else{
@@ -638,7 +677,7 @@ class Chat extends React.Component {
                         confirmMessage:""
                     })
                 }else {
-                    if(msgData) this.printMessage(msgData,this.state.changeStatusName);
+                    if(msgData) this.printMessage(msgData,"contacts",this.state.changeStatusName);
                     this.setState({
                         contacts:userData.contacts,
                         blockedContacts:userData.blockedContacts,
@@ -677,8 +716,8 @@ class Chat extends React.Component {
                                 err: {message: err},
                             })
                         } else {
-                            this.printMessage(mes, name);
-                            this.msgCounter("contacts", this.getUsersIdx("contacts", name));
+                            this.printMessage(mes, "contacts",name);
+                            this.msgCounter("contacts", name);
                             this.setState({message: ''}, () => this.scrollToBottom(this.refs.InpUl));
                         }
                     });
@@ -695,8 +734,8 @@ class Chat extends React.Component {
                             err: {message: err},
                         })
                     } else {
-                        this.printMessage(mes, name);
-                        this.msgCounter("contacts", this.getUsersIdx("contacts", name));
+                        this.printMessage(mes, "contacts",name);
+                        this.msgCounter("contacts", name);
                         this.setState({message: ''}, () => this.scrollToBottom(this.refs.InpUl));
                     }
                 });
@@ -713,7 +752,7 @@ class Chat extends React.Component {
                             })
                         }else {
                             this.setState({rooms:data.rooms});
-                            this.printMessage(msgData,roomName);
+                            this.printMessage(msgData,"rooms",roomName);
                         }
                     });
                 }
@@ -728,7 +767,7 @@ class Chat extends React.Component {
                             })
                         }else {
                             this.setState({channels:data.channels});
-                            this.printMessage(msgData,roomName);
+                            this.printMessage(msgData,"channels",roomName);
                         }
                     });
                 }
@@ -744,7 +783,7 @@ class Chat extends React.Component {
                         })
                     }else {
                         this.setState({rooms:data.rooms});
-                        this.printMessage(msgData,roomName);
+                        this.printMessage(msgData,"rooms",roomName);
                     }
                 });
                 break;
@@ -759,7 +798,7 @@ class Chat extends React.Component {
                         })
                     }else {
                         this.setState({rooms:data.rooms});
-                        this.printMessage(msgData,roomName);
+                        this.printMessage(msgData,"rooms",roomName);
                     }
                 });
                 break;
@@ -774,7 +813,7 @@ class Chat extends React.Component {
                         })
                     }else {
                         this.setState({rooms:data.rooms});
-                        this.printMessage(msgData,roomName);
+                        this.printMessage(msgData,"rooms",roomName);
                     }
                 });
                 break;
@@ -862,7 +901,7 @@ class Chat extends React.Component {
                             confirmMessage:""
                         })
                     }else {
-                        this.printMessage(msgData,username);
+                        this.printMessage(msgData,"contacts",username);
                         this.setState({
                             contacts:userData.contacts,
                             blockedContacts:userData.blockedContacts,
@@ -961,13 +1000,14 @@ class Chat extends React.Component {
         //console.log("scrollHandler: ",e.target);
         if(e.target.scrollTop === 0) {
             //console.log("scrollHandler on top: ",e," ,",name," ,",array," ,",itm);
-            let msgCount = this.state.messagesStore[name].length;
+            let msgCount = this.state.messagesStore[array][name].length;
             this.setState({scrollTopMax: e.target.scrollTopMax},()=>this.getLog(array,name,msgCount+10));
         }
     };
 
     setAsRead = (itmName,idx)=>{
         console.log("setAsRead itmName: ",itmName," ,idx: ",idx);
+        let a = this.state.arrayBlockHandlerId
         this.socket.emit('setMesStatus',idx,itmName,(err)=>{
             if(err) {
                 this.setState({
@@ -976,10 +1016,10 @@ class Chat extends React.Component {
                 })
             } else {
                 let messagesStore = this.state.messagesStore;
-                messagesStore[itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === this.state.user.username).status = true;
+                messagesStore[a][itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === this.state.user.username).status = true;
                 this.setState({messagesStore},()=> {
                     //console.log("setAsRead DONE!");
-                    this.msgCounter(this.state.arrayBlockHandlerId,this.state.messageBlockHandlerId,true)})
+                    this.msgCounter(this.state.arrayBlockHandlerId,itmName,true)})
             }
         })
     };
@@ -1039,21 +1079,16 @@ class Chat extends React.Component {
                             err:{message:err},
                         })
                     }else {
-
                         let messagesStore = this.state.messagesStore;
                         //console.log("msgStore: ", messagesStore[currentUser]," ,len: ", messagesStore[currentUser].length);
-
                         this.setState(state => {
-                            state.messagesStore[currentUser] = state.messagesStore[currentUser].filter((itm) => !this.state.selectModMsgList.includes(itm._id));
+                            state.messagesStore["contacts"][currentUser] = state.messagesStore["contacts"][currentUser].filter((itm) => !this.state.selectModMsgList.includes(itm._id));
                             return state
                         });
-
-
                         this.setState({
                             selectMode:false,
                             onContextMenuBtn: false,
                             selectModMsgList: [],
-
                             isChecked: false
                         });
                     }
@@ -1090,14 +1125,13 @@ class Chat extends React.Component {
                 })
             } else {
                 //console.log("messageForward successful updatedMes: ", mesArray);
-                mesArray.forEach(itm => this.printMessage(itm, forwardTo));
+                mesArray.forEach(itm => this.printMessage(itm, arrayFrowardTo,forwardTo));
                 this.setState({
                     isForward: false,
                     selectMode:false,
                     isChecked: false,
                     selectModMsgList:[],
                 });
-                //this.msgCounter("contacts", this.getUsersIdx("contacts", username));
             }
         });
     };
@@ -1475,7 +1509,7 @@ class Chat extends React.Component {
                             let eStore = {};
                             if (a !== undefined && e !== undefined) {eUser = this.state[a][e]}
                             else eUser = undefined;
-                            if(eUser !== undefined && eUser.name !== undefined) {eStore = this.state.messagesStore[eUser.name]}
+                            if(eUser !== undefined && eUser.name !== undefined) {eStore = this.state.messagesStore[a][eUser.name]}
                             else eStore = undefined;
                             //console.log("eStore: ",eStore);
 

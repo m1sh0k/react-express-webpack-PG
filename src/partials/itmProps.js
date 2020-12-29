@@ -6,7 +6,6 @@ class RoomManager extends React.Component {
     constructor(props) {
         super(props);
         this.state = {
-            room: this.props.room
 
         }
     }
@@ -27,6 +26,11 @@ class RoomManager extends React.Component {
                         <div className="chat-room-info">
                             <a className="chat-room-name">{this.props.room.name}</a>
                             <a className="chat-room-members-count">{this.props.room.members.length} members</a>
+                        </div>
+                    ) : (this.props.channel) ?  (
+                        <div className="chat-room-info">
+                            <a className="chat-room-name">{this.props.channel.name}</a>
+                            <a className="chat-room-members-count">{this.props.channel.members.length} members</a>
                         </div>
                     ) : ( this.props.user ?
                         <div className="chat-room-info">

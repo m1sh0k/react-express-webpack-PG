@@ -24,7 +24,7 @@
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
     "react-ds": "^1.13.0",
-    "react-router-dom": "^4.3.1",
+    "react-router-dom": "^5.2.0",
     "react-table": "^6.11.5",
     "react-visibility-sensor": "^5.1.1",
     "style-loader": "^0.23.1",

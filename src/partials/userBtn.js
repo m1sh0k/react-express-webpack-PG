@@ -61,7 +61,8 @@ class UserBtn extends React.Component {
             case "leaveRoom":
             case "viewRoomData":
             case "moveRoomOnTop":
-            case "changeNotificationStatus":
+            case "chgRNtfStatus":
+            case "chgChNtfStatus":
             case "clearRoomWindow":
                 this.props.onContextMenuHandler(res,null,this.state.onContextMenuUserName);
                 this.setState({onContextMenu:false});
@@ -97,6 +98,7 @@ class UserBtn extends React.Component {
                  type="button"
                  className={`btn user ${this.props.messageBlockHandlerId === i ?"clicked ":""}`}>
                 {this.props.roomList ? <div className="user-icon"/> :""}
+                {this.props.channelList ? <div className="channel-icon"/> :""}
                 {itm ?
                     <div className="userStatus">
                         <ul>
@@ -107,7 +109,7 @@ class UserBtn extends React.Component {
                                     </div>
                                     :""}
                             </li>
-                            {!this.props.roomList ? <li className={` statusNet ${itm.onLine ? "onLine":"offLine"}`}/>:""}
+                            {!this.props.roomList && !this.props.channelList ? <li className={` statusNet ${itm.onLine ? "onLine":"offLine"}`}/>:""}
                         </ul>
                     </div>
                     :""}
@@ -128,12 +130,13 @@ class UserBtn extends React.Component {
                         authorizedStatus={this.state.authorizedStatus}
                         banList={this.props.banList}
                         roomList={this.props.roomList}
+                        channelList={this.props.channelList}
                         rightClickMenuOnHide={this.rightClickMenuOnHide}
                         onContextMenuResponse={this.onContextMenuResponse}
                         contextMenuLocation={this.state.contextMenuLocation}
                         userList={this.props.userList ? this.props.userList.filter(name => !itm.members.map(itm => itm.username).some(itm => itm === name)) : ""}
                         contacts={this.props.contacts ? this.props.contacts : ""}
-                        userRoomList={this.props.roomList ? itm.members.filter(itm => itm.username !== this.props.username)/*.map(itm => itm.username).filter(name => name !== this.props.username)*/ : ''}//filter added users in room
+                        userRoomList={this.props.roomList || this.props.channelList ? itm.members.filter(itm => itm.username !== this.props.username)/*.map(itm => itm.username).filter(name => name !== this.props.username)*/ : ''}//filter added users in room
                         userBanRoomList={this.props.roomList ? itm.blockedMembers.map(itm => itm.username) : ''}
                         userNRSStatus={this.props.userNRSStatus}
                     />

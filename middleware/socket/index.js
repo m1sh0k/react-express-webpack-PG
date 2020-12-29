@@ -6,8 +6,10 @@ var DevError = require('./../error/index').DevError;
 var User = require('../db/models/index').User;
 var Message = require('../db/models/index').Message;
 var Room = require('../db/models/index').Room;
+var Channel = require('../db/models/index').Channel;
 var MessageData = require('../db/models/index').MessageData;
 var UserRoom = require('../db/models/index').UserRoom;
+var ChannelUser = require('../db/models/index').ChannelUser;
 var globalChatUsers = {};
 var common = require('../common').commonEmitter;
 const { Op } = require("sequelize");
@@ -85,16 +87,18 @@ async function aggregateUserData(username) {
             where: {username:username},
             include: [
                 {model: Room,as:'rooms'},
+                {model: Channel,as:'channels'},
                 {model: User,as:'contacts'},
                 {model: User,as:'blockedContacts'},
             ],
         });
 
         let userData = await data.reformatData();
-        //console.log('test agrReFormatData: ', userData);
+        console.log('test agrReFormatData: ', userData);
         let contacts = userData.contacts || [];
         let blockedContacts = userData.blockedContacts || [];
-        let rooms = userData.rooms|| [];
+        let rooms = userData.rooms || [];
+        let channels = userData.channels || [];
 
 
         let wL = contacts.map(async (name,i) =>{
@@ -141,12 +145,26 @@ async function aggregateUserData(username) {
             let room = await data.reformatData();
             let {err,mes} = await Message.messageHandler({sig:name});
             let mesFltr = mes.filter(itm => itm.author !== username && itm.recipients.some(itm => itm.username === username) && !itm.recipients.find(itm => itm.username === username).status);
-            console.log('aggDataRooms mesFltr: ',mesFltr.length);
+            //console.log('aggDataRooms mesFltr: ',mesFltr.length);
             return rooms[i] = {name:name, msgCounter:mesFltr.length, allMesCounter:mes.length, members:room.members, blockedMembers:room.blockedMembers, created_at:room.createdAt, groupId:room._id}
+        });
+        let cL = channels.map(async (name,i) =>{
+            let data = await Channel.findOne({
+                where:{name:name},
+                include: [
+                    {model: User,as:'members',include:{model:Channel,as:'channels',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                ],
+            });
+            let channel = await data.reformatData();
+            let {err,mes} = await Message.messageHandler({sig:name});
+            let mesFltr = mes.filter(itm => itm.author !== username && itm.recipients.some(itm => itm.username === username) && !itm.recipients.find(itm => itm.username === username).status);
+            console.log('aggDataRooms mesFltr: ',mesFltr.length);
+            return channels[i] = {name:name, msgCounter:mesFltr.length, allMesCounter:mes.length, members:channel.members, created_at:channel.createdAt, channelId:channel._id}
         });
         userData.contacts = await Promise.all(wL);
         userData.blockedContacts = await Promise.all(bL);
         userData.rooms = await Promise.all(rL);
+        userData.channels = await Promise.all(cL);
         //console.log("aggregateUserData: ",username,": ",userData);
         return userData;
     } catch (err) {
@@ -233,8 +251,6 @@ module.exports = function (server) {
         }
     });
 
-
-
     io.sockets.on('connection', async function (socket) {
         //Global Chat Events
         let username = socket.request.user.username;//req username
@@ -249,6 +265,7 @@ module.exports = function (server) {
             contacts:userDB.contacts.map(itm => itm.name) || [], //use only for username otherwise the data may not be updated.
             blockedContacts:userDB.blockedContacts.map(itm => itm.name) || [], //use only for username otherwise the data may not be updated.
             rooms:userDB.rooms.map(itm => itm.name) || [],
+            channels:userDB.channels.map(itm => itm.name) || [],
         };
         console.log('connection globalChatUsers: ',globalChatUsers);
         //update UserData
@@ -404,9 +421,18 @@ module.exports = function (server) {
                 //console.log("findContacts nameString:", nameString);
                 //let users = await User.find( { "username": { "$regex": nameString, "$options": "i" } } );
                 let users = await User.findAll({where: {username:{[Op.iLike]: '%' + nameString + '%'}}});
-                console.log("findContacts users:",users);
-                let usersArr = users.map(itm=>itm.username).filter(name => name !== username);
-                return  cb(null,usersArr);
+                users = users.map(itm => itm.username)
+                    .filter(name => name !== username)
+                    .filter(name => !globalChatUsers[username].contacts.includes(name))
+                    .filter(name => !globalChatUsers[username].blockedContacts.includes(name));
+                let rooms = await Room.findAll({where: {name:{[Op.iLike]: '%' + nameString + '%'}}});
+                rooms = rooms.map(itm => itm.name).filter(name => !globalChatUsers[username].rooms.includes(name));
+                let channels = await Channel.findAll({where: {name:{[Op.iLike]: '%' + nameString + '%'}}});
+                channels = channels.map(itm => itm.name).filter(name => !globalChatUsers[username].channels.includes(name));
+
+                let findedArr = {users:users,rooms:rooms,channels:channels};
+                console.log("findContacts findedArr:",findedArr);
+                return  cb(null,findedArr);
             } catch (err) {
                 console.log("findContacts err:",err);
                 return cb(err,null)
@@ -456,18 +482,11 @@ module.exports = function (server) {
             }
         });
         //set chat mes status
-        socket.on('setMesStatus',async function (idx,reqUsername,cb) {
+        socket.on('setMesStatus',async function (idx,itmType,itmName,cb) {
             try {
-                console.log("setMesStatus: indexArr: ",idx," ,reqUsername: ",reqUsername);
+                console.log("setMesStatus: indexArr: ",idx," ,itmType: ",itmType,' ,itmName: ',itmName);
+                let reqUser,reqRoom,reqChannel;
                 let user = await User.findOne({where:{username:username}});//set user message status
-                let reqUser = await User.findOne({where:{username:reqUsername}});//set room message status
-                let room;
-                if(!reqUser) {
-                    room = await Room.findOne({where:{name:reqUsername},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
-                    room = await room.reformatData();
-                    console.log("setMesStatus: room._id: ",room._id);
-                }
-                console.log("setMesStatus: user._id: ",user._id);
                 await MessageData.update(
                     {status: true},
                     {where:{
@@ -475,12 +494,24 @@ module.exports = function (server) {
                             userId:user._id
                         }
                     });
-                if(reqUser) {
-                    if(globalChatUsers[reqUsername]) socket.broadcast.to(globalChatUsers[reqUsername].sockedId).emit('updateMsgStatus',username,idx,null);
-                } else {
-                    for(let name of room.members) {
-                        if(globalChatUsers[name] && name !== username) socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateMsgStatus',reqUsername,idx,username);
-                    }
+                switch (itmType) {
+                    case "users":
+                        reqUser = await User.findOne({where:{username:itmName}});//set user message status
+                        if(globalChatUsers[itmName]) socket.broadcast.to(globalChatUsers[itmName].sockedId).emit('updateMsgStatus',username,idx,null);
+                        break;
+                    case "rooms":
+                        reqRoom = await Room.findOne({where:{name:itmName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});//set room message status
+                        reqRoom = await reqRoom.reformatData();
+                        for(let name of reqRoom.members) {
+                            if(globalChatUsers[name] && name !== username) socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateMsgStatus',itmName,idx,username);
+                        }
+                        break;
+                    case "channels":
+                        reqChannel = await Channel.findOne({where:{name:itmName},include:[{model:User,as:'members'}]});//set channel message status
+                        for(let name of reqChannel.members) {
+                            if(globalChatUsers[name] && name !== username) socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateMsgStatus',itmName,idx,username);
+                        }
+                        break;
                 }
                 cb(null);
             } catch (err) {
@@ -488,6 +519,38 @@ module.exports = function (server) {
                 cb(err);
             }
         });
+        // socket.on('setMesStatus',async function (idx,reqUsername,cb) {
+        //     try {
+        //         console.log("setMesStatus: indexArr: ",idx," ,reqUsername: ",reqUsername);
+        //         let user = await User.findOne({where:{username:username}});//set user message status
+        //         let reqUser = await User.findOne({where:{username:reqUsername}});//set room message status
+        //         let room;
+        //         if(!reqUser) {
+        //             room = await Room.findOne({where:{name:reqUsername},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
+        //             room = await room.reformatData();
+        //             console.log("setMesStatus: room._id: ",room._id);
+        //         }
+        //         console.log("setMesStatus: user._id: ",user._id);
+        //         await MessageData.update(
+        //             {status: true},
+        //             {where:{
+        //                     messageId:idx,
+        //                     userId:user._id
+        //                 }
+        //             });
+        //         if(reqUser) {
+        //             if(globalChatUsers[reqUsername]) socket.broadcast.to(globalChatUsers[reqUsername].sockedId).emit('updateMsgStatus',username,idx,null);
+        //         } else {
+        //             for(let name of room.members) {
+        //                 if(globalChatUsers[name] && name !== username) socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateMsgStatus',reqUsername,idx,username);
+        //             }
+        //         }
+        //         cb(null);
+        //     } catch (err) {
+        //         console.log("setMesStatus err: ",err);
+        //         cb(err);
+        //     }
+        // });
         //chat message typing
         socket.on('typing', function (name) {
             if(!globalChatUsers[name]) return;
@@ -864,6 +927,50 @@ module.exports = function (server) {
                 cb(err,null)
             }
         });
+        //get channel log
+        socket.on('getChannelLog', async function  (channelName,reqMesCountCb,reqMesId,cb) {
+            try {
+                console.log("getChannelLog: ",channelName);
+                let channel = await Channel.findOne({
+                    where:{name:channelName},
+                    include: [
+                        {model: User,as:'members',include:{model:Channel,as:'channels',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                    ],
+                });
+                channel = await channel.reformatData();
+                console.log("getChannelLog channel: ",channel);
+                if(!channel) return cb("Error Channel do not exist!",null);
+                if(!channel.members.some(itm => itm.username === username)) return cb("You are not a member of the channel.",null);
+
+                if(!reqMesId) {
+                    var {err,mes} = await Message.messageHandler({sig:channelName},reqMesCountCb);
+                    if(err) return cb(err,null);
+                }else {
+                    mes = await Message.findAll({
+                        where:{
+                            sig:channelName,
+                            _id:{[Op.gte]:reqMesId}
+                        },
+                        order: [
+                            [ 'createdAt', 'DESC' ],
+                        ],
+                        include:{
+                            model:User,
+                            as:'recipients',
+                            attributes: ['username'],
+                            through: {attributes: ['status']}
+                        }
+                    });
+                    let promisesMes = mes.map(itm => itm.reformatData());
+                    mes = await Promise.all(promisesMes);
+                    mes.sort((a,b) => a.createdAt - b.createdAt);
+                }
+                return cb(null,mes);
+            } catch (err) {
+                console.log("getRoomLog err: ",err);
+                cb(err,null)
+            }
+        });
         //room message handler
         socket.on('messageRoom', async function  (text,roomName,dateNow,cb) {
             try {
@@ -898,7 +1005,6 @@ module.exports = function (server) {
             }
         });
         //block user in room
-        //UnDoing FE
         socket.on('blockRoomUser', async function  (roomName,bannedUser,dateNow,cb) {
             try {
                 console.log('blockRoomUser roomName: ',roomName," ,bannedUser: ",bannedUser);
@@ -974,8 +1080,8 @@ module.exports = function (server) {
                 cb(err,null,null)
             }
         });
-        //enable/disable notification
-        socket.on('changeNtfStatus', async function  (roomName,cb) {
+        //enable/disable notification in room
+        socket.on('chgRNtfStatus', async function  (roomName,cb) {
             try {
                 console.log('changeNtfStatus roomName: ',roomName);
                 let room = await Room.findOne({
@@ -996,6 +1102,37 @@ module.exports = function (server) {
                 },{
                     where:{
                         roomId:room._id,
+                        userId:globalChatUsers[username]._id
+                    }
+                });
+
+                cb(null,await aggregateUserData(username))
+            } catch (err) {
+                console.log("setRoomAdmin err: ",err);
+                cb(err,null)
+            }
+        });
+        //enable/disable notification in channel
+        socket.on('chgChNtfStatus', async function  (channelName,cb) {
+            try {
+                console.log('changeNtfStatus channelName: ',channelName);
+                let channel = await Channel.findOne({
+                    where:{name:channelName},
+                    include:[
+                        {model: User,as:'members',include:{model:Channel,as:'channels',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                    ]
+                });
+                let channelData = await channel.reformatData();
+                console.log('changeNtfStatus roomData: ',channelData);
+                if(!channelData.members.some(itm => itm.username === username)) {
+                    return cb("You are not a member of this channel or you are on the block list.",null);
+                }
+                let status = channelData.members.find(itm => itm.username === username).enable;
+                await ChannelUser.update({
+                    enable:!status
+                },{
+                    where:{
+                        channelId:channel._id,
                         userId:globalChatUsers[username]._id
                     }
                 });
@@ -1048,6 +1185,7 @@ module.exports = function (server) {
                 console.log('deleteMessages, ids: ',ids,' ,reqUsername: ',reqUsername);
                 //delete all messages with ids and sig
                 if(await Room.findOne({where:{name:reqUsername}})) return cb("Rejected. Delete group history is not available!",null);
+                if(await Channel.findOne({where:{name:reqUsername}})) return cb("Rejected. Delete channel history is not available!",null);
                 if(!globalChatUsers[username].contacts.includes(reqUsername) && !globalChatUsers[username].blockedContacts.includes(reqUsername)) {
                     return cb("Rejected. User "+reqUsername+" is not in your lists!",null);
                 }
@@ -1084,6 +1222,99 @@ module.exports = function (server) {
                 delete globalChatUsers[username];
             } catch (err) {
                 console.log("disconnect err: ",err);
+            }
+        });
+        //channel events
+        //create new channel
+        socket.on('createChannel', async function  (channelName,dateNow,cb) {
+            try {
+                console.log('createChannel: ',channelName);
+                let {err,channel,user} = await Channel.createChannel(channelName,username);
+                console.log('createChannel: ',channel);
+                if(err) {
+                    return cb(err,null)
+                } else {
+                    let {err,mes} = await Message.messageHandler({sig:channelName,members:channel.members,message:{ author: username, text: username+" created a new channel "+channelName+".", status: false, date: dateNow}});
+                    return cb(null,await aggregateUserData(username))
+                }
+            } catch (err) {
+                console.log("createRoom err: ",err);
+                cb(err,null)
+            }
+        });
+        //invite users to channel
+        socket.on('inviteUserToChannel', async function  (channelName,invitedUser,dateNow,cb) {
+            try {
+                console.log('inviteUserToChannel: ',channelName, ' ,invitedUser: ',invitedUser);
+                let {err,channel,user} = await Channel.inviteUserToChannel(channelName,invitedUser,username);
+                channel = await channel.reformatData();
+                if(err) {
+                    return cb(err,null,null)
+                } else {
+                    let {err,mes} = await Message.messageHandler({sig:channelName,members:channel.members, message:{ author: username, text: username+" added new user "+invitedUser+".", status: false, date: dateNow}});
+                    for (let name of channel.members) {
+                        if(globalChatUsers[name] && name !== username) {
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateUserData',await aggregateUserData(name));
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageChannel',mes);
+                        }
+                    }
+                    cb(null,await aggregateUserData(username),mes)
+                }
+            } catch (err) {
+                console.log("inviteUserToChannel err: ",err);
+                cb(err,null,null)
+            }
+        });
+        //
+        socket.on('joinToChannel', async function(channelName,dateNow,cb){
+            try{
+                console.log('joinToChannel: ',channelName,', joinedUser: ',username);
+                let {err,channel,user} = await Channel.joinToChannel(channelName,username);
+                let chUs = await ChannelUser.findOne({where:{channelId:channel._id, creator:true}});
+                let channelCreator = await User.findOne({where:{_id:chUs.userId}}).username;
+                console.log('joinToChannel channelCreator: ',channelCreator);
+                if(err) {
+                    return cb(err,null,null)
+                } else {
+                    let {err,mes} = await Message.messageHandler({sig:channelName,members:channel.members, message:{ author: channelCreator, text: username+" joined to channel.", status: false, date: dateNow}});
+                    for (let name of channel.members) {
+                        if(globalChatUsers[name] && name !== username) {
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateUserData',await aggregateUserData(name));
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageChannel',mes);
+                        }
+                    }
+                    cb(null,await aggregateUserData(username),mes)
+                }
+
+            } catch(err){
+                console.log("joinToChannel err: ",err);
+            }
+
+        })
+        //leave channel
+        socket.on('leaveChannel', async function  (channelName,dateNow,cb) {
+            try {
+                console.log("leaveChannel: ",channelName);
+                let {err,channel,user} = await Room.leaveChannel(channelName,username);
+                if(!channel) return cb(null,await aggregateUserData(username));
+                channel = await channel.reformatData();
+                if(err) {
+                    console.log('leaveRoom err: ',err);
+                    return cb(err,null)
+                }
+                else {
+                    let {err,mes} = await Message.messageHandler({sig:channelName,members:channel.members,message:{ author: username, text: username+" left the channel.", status: false, date: dateNow}});
+                    for (let name of channel.members) {
+                        if(globalChatUsers[name]) {
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateUserData',await aggregateUserData(name));
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageChannel',mes);
+                        }
+                    }
+                    cb(null,await aggregateUserData(username))
+                }
+            } catch (err) {
+                console.log("leaveChannel err: ",err);
+                cb(err,null)
             }
         });
     });

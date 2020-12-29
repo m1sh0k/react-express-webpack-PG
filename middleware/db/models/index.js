@@ -10,7 +10,7 @@ const sequelize = new Sequelize(pgConf.database,pgConf.username, pgConf.password
 });
 const { Op } = require("sequelize");
 //////////////////////////////////////////////////////////////////
-//Create MUser Table
+//Create User Table
 const User = sequelize.define('user', {
     _id: {
         type: Sequelize.INTEGER,
@@ -46,7 +46,7 @@ const User = sequelize.define('user', {
 }, {tableName: 'user'});
 User.sync();
 //
-var Contacts = sequelize.define('Contacts', {
+const Contacts = sequelize.define('Contacts', {
     userId: {
         type: Sequelize.INTEGER,
         allowNull: false,
@@ -58,7 +58,7 @@ var Contacts = sequelize.define('Contacts', {
 }, { timestamps: false,tableName: 'Contacts' });
 Contacts.sync();
 //
-var BlockedContacts = sequelize.define('BlockedContacts', {
+const BlockedContacts = sequelize.define('BlockedContacts', {
     userId: {
         type: Sequelize.INTEGER,
         allowNull: false,
@@ -72,195 +72,6 @@ BlockedContacts.sync();
 //
 User.belongsToMany(User, {as:'contacts',otherKey:'contactId',foreignKey:'userId',through: 'Contacts'});
 User.belongsToMany(User, {as:'blockedContacts',otherKey:'blockedContactId',foreignKey:'userId',through: 'BlockedContacts'});
-//////////////////////////////////////////////////////////////////
-//Create Room Table
-var Room = sequelize.define('room', {
-    _id: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        primaryKey: true,
-        autoIncrement: true,
-        unique: true
-    },
-    name: {
-        type: Sequelize.STRING,
-        allowNull: false,
-        unique: true
-    },
-}, {tableName: 'room'});
-Room.sync();
-//
-var RoomMembers = sequelize.define('RoomMembers', {
-    roomId: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-    },
-    userId: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-    },
-}, { timestamps: false,tableName: 'RoomMembers' });
-RoomMembers.sync();
-//
-var RoomBlockedMembers = sequelize.define('RoomBlockedMembers', {
-    roomId: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-    },
-    userId: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-    },
-}, { timestamps: false,tableName: 'RoomBlockedMembers' });
-RoomBlockedMembers.sync();
-//
-var UserRoom = sequelize.define('UserRoom', {
-    roomId: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-    },
-    userId: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-    },
-    enable:{
-        type: Sequelize.BOOLEAN,
-        allowNull: false,
-        defaultValue:false,
-    },
-    admin:{
-        type: Sequelize.BOOLEAN,
-        allowNull: false,
-        defaultValue:false,
-    },
-}, { timestamps: false,tableName: 'UserRoom' });
-UserRoom.sync();
-//
-Room.belongsToMany(User, {as: 'members', through: RoomMembers});
-//Magic methods setMembers, addMembers, removeMembers eth..
-Room.belongsToMany(User, {as: 'blockedMembers', through: RoomBlockedMembers});
-//Magic methods setBlockedMembers, addBlockedMembers, removeBlockedMembers eth..
-User.belongsToMany(Room, {as:'rooms', through: UserRoom});
-//Magic methods setRooms, addRooms, removeRooms eth..
-//////////////////////////////////////////////////////////////////
-//Create Message Table
-const Message = sequelize.define('message', {
-    _id: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        primaryKey: true,
-        autoIncrement: true,
-        unique: true
-    },
-    text: {//message text
-        type: Sequelize.STRING,
-        allowNull: false,
-    },
-    author:{
-        type: Sequelize.STRING,
-        allowNull: false,
-    },
-    sig: {//message text
-        type: Sequelize.STRING,
-        allowNull: false,
-    },
-    forwardFrom:{
-        type: Sequelize.STRING,
-    },
-    action:{
-        type: Sequelize.STRING,
-    },
-    date:{
-        type: Sequelize.DATE,
-        allowNull: false,
-    },
-}, {tableName: 'message'});
-Message.sync();
-//
-const MessageData  = sequelize.define('MessageData', {
-    messageId:{
-        type: Sequelize.INTEGER,
-        allowNull: false,
-    },
-    userId:{
-        type: Sequelize.INTEGER,
-        allowNull: false,
-    },
-    status:{//author
-        type: Sequelize.BOOLEAN,
-        allowNull: false,
-        defaultValue:false,
-    },
-});
-MessageData.sync();
-//
-Message.belongsToMany(User, {as: 'recipients',through: MessageData});
-Message.belongsTo(User, {foreignKey:'forwardFrom'});
-Message.sync();
-//////////////////////////////////////////////////////////////////
-
-//message internal methods
-Message.prototype.reformatData = async function() {
-    let mes = this;
-    mes = mes.toJSON();
-    mes.recipients = mes.recipients.map((res)=>{
-        return {username: res.username, status:res.MessageData.status}
-    });
-    return mes
-};
-
-
-
-//message methods
-Message.messageHandler = async function (data,limit) {
-    var Message = this;
-    //let mes = {};
-    let err = {};
-    //let sig = setGetSig(data.members);
-    console.log('DB messageHandler: ',data);
-    try {
-        if(data.message) {//write data
-            if(!data.message.author || !data.message.date || !data.sig || !data.message.text) return {err:"Create Message. Not full request",mes:null};
-            let mes = await Message.create({text: data.message.text,sig:data.sig,date:data.message.date,author:data.message.author});
-            for (let name of data.members) {
-                if(name !== data.message.author) await mes.addRecipient(await User.findOne({where:{username:name}}))
-            }
-            mes = await Message.findOne({
-                where: {_id:mes._id},
-                include:{
-                    model:User,
-                    as:'recipients',
-                    attributes: ['username'],
-                    through: {attributes: ['status']}
-                }
-            });
-            mes = await mes.reformatData();
-            return {err:null,mes:mes};//return current message
-        }else {//read data and return log
-            let mes = await Message.findAll({
-                limit:limit,
-                where:{sig:data.sig},
-                order: [
-                    [ 'createdAt', 'DESC' ],
-                ],
-                include:{
-                    model:User,
-                    as:'recipients',
-                    attributes: ['username'],
-                    through: {attributes: ['status']}
-                }
-            });
-            let promisesMes = mes.map(itm => itm.reformatData());
-            mes = await Promise.all(promisesMes);
-            mes.sort((a,b) => a.createdAt - b.createdAt);
-            return {err:null,mes: mes};
-        }
-    } catch(err) {
-        console.log('messageHandler err: ',err);
-        return {err:err,mes:null};
-    }
-};
-//////////////////////////////////////////////////////////////////
 //User internal methods
 User.prototype.encryptPassword = function(password) {
     console.log("encryptPassword password: ",password);
@@ -279,6 +90,7 @@ User.prototype.reformatData = async function() {
     if(nameUserDB.contacts) nameUserDB.contacts = nameUserDB.contacts.map(itm => itm.username) || [];
     if(nameUserDB.blockedContacts) nameUserDB.blockedContacts = nameUserDB.blockedContacts.map(itm => itm.username) || [];
     if(nameUserDB.rooms) nameUserDB.rooms = nameUserDB.rooms.map(itm => itm.name)  || [];
+    if(nameUserDB.channels) nameUserDB.channels = nameUserDB.channels.map(itm => itm.name)  || [];
     return nameUserDB
 };
 //user methods
@@ -370,7 +182,7 @@ User.userMFBCTC = async function (reqUser,contact) {//MoveFromBlockedContactsToC
             include:[
                 {model: User,as:'contacts'},
                 {model: User,as:'blockedContacts'},
-                ]
+            ]
         });
         await user.reformatData();
         if(!user) return ({err:"No user name "+reqUser+" found.",user:null});
@@ -467,19 +279,196 @@ User.changeData = async function(paramAuth) {
         return {err:err,user:null};
     }
 };
-// //
-
-// //room methods
-// var User = mongoose.model('User', user);
-// var Message = mongoose.model('Message', message);
-//create new room and push roomName to user room list]
-
+//////////////////////////////////////////////////////////////////
+//Create Message Table
+const Message = sequelize.define('message', {
+    _id: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        primaryKey: true,
+        autoIncrement: true,
+        unique: true
+    },
+    text: {//message text
+        type: Sequelize.STRING,
+        allowNull: false,
+    },
+    author:{
+        type: Sequelize.STRING,
+        allowNull: false,
+    },
+    sig: {//message text
+        type: Sequelize.STRING,
+        allowNull: false,
+    },
+    forwardFrom:{
+        type: Sequelize.STRING,
+    },
+    action:{
+        type: Sequelize.STRING,
+    },
+    date:{
+        type: Sequelize.DATE,
+        allowNull: false,
+    },
+}, {tableName: 'message'});
+Message.sync();
+//
+const MessageData  = sequelize.define('MessageData', {
+    messageId:{
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+    userId:{
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+    status:{//author
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue:false,
+    },
+});
+MessageData.sync();
+//
+Message.belongsToMany(User, {as: 'recipients',through: MessageData});
+Message.belongsTo(User, {foreignKey:'forwardFrom'});
+Message.sync();
+//////////////////////////////////////////////////////////////////
+//message internal methods
+Message.prototype.reformatData = async function() {
+    let mes = this;
+    mes = mes.toJSON();
+    mes.recipients = mes.recipients.map((res)=>{
+        return {username: res.username, status:res.MessageData.status}
+    });
+    return mes
+};
+//message methods
+Message.messageHandler = async function (data,limit) {
+    var Message = this;
+    //let mes = {};
+    let err = {};
+    //let sig = setGetSig(data.members);
+    console.log('DB messageHandler: ',data);
+    try {
+        if(data.message) {//write data
+            if(!data.message.author || !data.message.date || !data.sig || !data.message.text) return {err:"Create Message. Not full request",mes:null};
+            let mes = await Message.create({text: data.message.text,sig:data.sig,date:data.message.date,author:data.message.author});
+            for (let name of data.members) {
+                if(name !== data.message.author) await mes.addRecipient(await User.findOne({where:{username:name}}))
+            }
+            mes = await Message.findOne({
+                where: {_id:mes._id},
+                include:{
+                    model:User,
+                    as:'recipients',
+                    attributes: ['username'],
+                    through: {attributes: ['status']}
+                }
+            });
+            mes = await mes.reformatData();
+            return {err:null,mes:mes};//return current message
+        }else {//read data and return log
+            let mes = await Message.findAll({
+                limit:limit,
+                where:{sig:data.sig},
+                order: [
+                    [ 'createdAt', 'DESC' ],
+                ],
+                include:{
+                    model:User,
+                    as:'recipients',
+                    attributes: ['username'],
+                    through: {attributes: ['status']}
+                }
+            });
+            let promisesMes = mes.map(itm => itm.reformatData());
+            mes = await Promise.all(promisesMes);
+            mes.sort((a,b) => a.createdAt - b.createdAt);
+            return {err:null,mes: mes};
+        }
+    } catch(err) {
+        console.log('messageHandler err: ',err);
+        return {err:err,mes:null};
+    }
+};
+//////////////////////////////////////////////////////////////////
+//Create Room Table
+const Room = sequelize.define('room', {
+    _id: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        primaryKey: true,
+        autoIncrement: true,
+        unique: true
+    },
+    name: {
+        type: Sequelize.STRING,
+        allowNull: false,
+        unique: true
+    },
+}, {tableName: 'room'});
+Room.sync();
+//
+const RoomMembers = sequelize.define('RoomMembers', {
+    roomId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+    userId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+}, { timestamps: false,tableName: 'RoomMembers' });
+RoomMembers.sync();
+//
+const RoomBlockedMembers = sequelize.define('RoomBlockedMembers', {
+    roomId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+    userId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+}, { timestamps: false,tableName: 'RoomBlockedMembers' });
+RoomBlockedMembers.sync();
+//
+const UserRoom = sequelize.define('UserRoom', {
+    roomId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+    userId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+    enable:{//NtfStatus
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue:false,
+    },
+    admin:{
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue:false,
+    },
+}, { timestamps: false,tableName: 'UserRoom' });
+UserRoom.sync();
+//
+Room.belongsToMany(User, {as: 'members', through: RoomMembers});
+//Magic methods setMembers, addMembers, removeMembers eth..
+Room.belongsToMany(User, {as: 'blockedMembers', through: RoomBlockedMembers});
+//Magic methods setBlockedMembers, addBlockedMembers, removeBlockedMembers eth..
+User.belongsToMany(Room, {as:'rooms', through: UserRoom});
+//Magic methods setRooms, addRooms, removeRooms eth..
 
 //Room internal methods
 Room.prototype.reformatData = async function() {
     let nameUserDB = this;
     nameUserDB = nameUserDB.toJSON();
-    console.log("reformatData: ",nameUserDB);
+    //console.log("reformatData: ",nameUserDB);
     nameUserDB.members = nameUserDB.members.map((itm) => {
             if(itm.rooms){
                 return {username:itm.username, enable:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.enable, admin:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.admin}
@@ -492,7 +481,7 @@ Room.prototype.reformatData = async function() {
         })  || [];
     return nameUserDB
 };
-//
+//room methods
 Room.createRoom = async function(roomName,username) {
     let Room = this;
     let room = {};
@@ -697,17 +686,230 @@ Room.setAdminInRoom = async function(roomName,adminRoom,newAdmin) {
         return {err:err,room:null};
     }
 };
-
+//////////////////////////////////////////////////////////////////
+//Create User Table
+const Channel = sequelize.define('channel', {
+    _id: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        primaryKey: true,
+        autoIncrement: true,
+        unique: true
+    },
+    name: {
+        type: Sequelize.STRING,
+        allowNull: false,
+        unique: true
+    },
+    private:{
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue:false,
+    }
+}, {tableName: 'channel'});
+Channel.sync();
 //
-// module.exports.User = mongoose.model('User', user);
-// module.exports.Room = mongoose.model('Room', room);
-// module.exports.Message = mongoose.model('Message', message);
+const ChannelUser = sequelize.define('ChannelUser', {
+    userId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+    channelId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+    enable:{//NtfStatus
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue:false,
+    },
+    admin:{
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue:false,
+    },
+    creator:{
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue:false,
+    },
+
+}, { timestamps: false,tableName: 'channelUser' });
+ChannelUser.sync();
+Channel.belongsToMany(User, {as: 'members', through: ChannelUser});
+//Magic methods setMember, addMember, removeMember eth..
+User.belongsToMany(Channel, {as:'channels', through: ChannelUser});
+//Magic methods setChannels, addChannel, removeChannel eth..
+//Channel internal methods
+Channel.prototype.reformatData = async function() {
+    let nameUserDB = this;
+    nameUserDB = nameUserDB.toJSON();
+    //console.log("Channel reformatData: ",nameUserDB);
+    nameUserDB.members = nameUserDB.members.map((itm) => {
+        if(itm.channels){
+            return {
+                username:itm.username,
+                enable:itm.channels.find(cn => cn.name === nameUserDB.name).ChannelUser.enable,
+                admin:itm.channels.find(cn => cn.name === nameUserDB.name).ChannelUser.admin,
+                creator:itm.channels.find(cn => cn.name === nameUserDB.name).ChannelUser.creator
+            }
+        } else return itm.username
+    })  || [];
+    //console.log("Channel reformatData out: ",nameUserDB);
+    return nameUserDB
+};
+//
+//Channel methods
+Channel.createChannel = async function(channelName,username,privateOpt) {
+    let Channel = this;
+    let err = {};
+    try {
+        let user = await User.findOne({where:{username:username}});
+        let channel = await Channel.findOne({where:{name:channelName}});
+        if(!channel){
+            if(privateOpt) channel = await Channel.create({name:channelName,private:privateOpt});
+            channel = await Channel.create({name:channelName});
+            console.log('Channel.createChannel: ',Object.keys(channel.__proto__));
+            //console.log('Channel.createRoom user: ',Object.keys(user.__proto__));
+            await channel.addMember(user);
+            await user.addChannel(channel,{through:{enable:true,admin:true,creator:true}});
+            //await channel.reload();
+            //await user.reload();
+            user = await User.findOne({where:{username:username},include:{model:Channel,as:'channels'}})
+            channel = await Channel.findOne({where:{name:channelName},include:[
+                    {model: User,as:'members',include:{model:Channel,as:'channels',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                ]});
+
+            //console.log('Channel.createChannel user: ',user);
+            //console.log('Channel.createChannel: ',channel);
+            return {err:null,channel:channel,user:user}
+        }else{
+            return {err:"A channel named "+channelName+" already exists. Choose another group name.",channel:null,user:null};
+        }
+    } catch (err) {
+        console.log('createChannel err: ',err);
+        return {err:err,channel:null,user:null};
+    }
+};
+
+Channel.inviteUserToChannel = async function(channelName,invited,inviter) {
+    console.log('inviteUserToChannel channelName: ',channelName, ', invited: ',invited);
+    let Channel = this;
+    let err = {};
+    try {
+        let user = await User.findOne({
+            where:{username:invited},
+            include: [
+                {model: User,as:'contacts'},
+                {model: User,as:'blockedContacts'},
+            ],
+        });
+        let channel = await Channel.findOne({
+            where:{name:channelName},
+            include:[
+                {model: User,as:'members'},
+            ]
+        });
+        let userData = await user.reformatData();
+        let channelData = await channel.reformatData();
+        console.log('inviteUserToChannel userData: ',userData);
+        console.log('inviteUserToChannel channelData: ',channelData);
+        if(!channelData.members.includes(inviter)) return {err:"You are not channel member.",channel:null,user:null};
+        if(channelData.members.includes(invited)) return {err:"User "+invited+" is already included in the channel.",channel:null,user:null};
+        if(userData.blockedContacts.includes(channelName)) return {err:"User "+invited+" include channel named "+channelName+" in block list.",channel:null,user:null};
+        await channel.addMember(user);
+        await user.addChannel(channel,{through:{enable:true}});
+        await channel.reload();
+        await user.reload();
+        console.log('inviteUserToChannel channel: ',channel);
+        return {err:null,channel:channel,user:user};
+    } catch (err) {
+        console.log('inviteUserToChannel err: ',err);
+        return {err:err,channel:null,user:null};
+    }
+};
+//joinToChannel
+Channel.joinToChannel = async function(channelName,joined) {
+    console.log('joinToChannel channelName: ',channelName, ', joined: ',joined);
+    let Channel = this;
+    let err = {};
+    try {
+        let user = await User.findOne({
+            where:{username:joined},
+            include: [
+                {model: User,as:'contacts'},
+                {model: User,as:'blockedContacts'},
+            ],
+        });
+        let channel = await Channel.findOne({
+            where:{name:channelName},
+            include:[
+                {model: User,as:'members'},
+            ]
+        });
+        let userData = await user.reformatData();
+        let channelData = await channel.reformatData();
+        console.log('joinToChannel userData: ',userData);
+        console.log('joinToChannel channelData: ',channelData);
+
+        if(channelData.members.includes(joined)) return {err:"User "+joined+" is already included in the channel.",channel:null,user:null};
+        if(channelData.private) return {err:"The channel is private. Entry by invitation only.",channel:null,user:null};
+        if(userData.blockedContacts.includes(channelName)) return {err:"You include channel named "+channelName+" in block list.",channel:null,user:null};
+        await channel.addMember(user);
+        await user.addChannel(channel,{through:{enable:true}});
+        await channel.reload();
+        await user.reload();
+        console.log('joinToChannel channel: ',channel);
+        return {err:null,channel:channel,user:user};
+    } catch (err) {
+        console.log('joinToChannel err: ',err);
+        return {err:err,channel:null,user:null};
+    }
+};
+
+Channel.leaveChannel = async function(channelName,invited) {
+    let Channel = this;
+    let err = {};
+    try {
+        let user = await User.findOne({
+            where:{username:invited},
+            include: [
+                {model: User,as:'contacts'},
+                {model: User,as:'blockedContacts'},
+            ],
+        });
+        let channel = await Channel.findOne({
+            where:{name:channelName},
+            include:[
+                {model: User,as:'members'},
+            ]
+        });
+        let userData = await user.reformatData();
+        let channelData = await channel.reformatData();
+        console.log('inviteUserToRoom userData: ',userData);
+        console.log('inviteUserToRoom channelData: ',channelData);
+        if(!channelData.members.includes(invited)) return {err:"User "+invited+" is not included in the channel.",channel:null,user:null};
+        await channel.removeMember(user);
+        await user.removeChannel(channel);
+        await channel.reload();
+        await user.reload();
+        return {err:null,channel:channel,user:user};
+    } catch (err) {
+        console.log('createChannel err: ',err);
+        return {err:err,channel:null,user:null};
+    }
+};
+
+
+
 
 module.exports.User = User;
 module.exports.Message = Message;
 module.exports.Room = Room;
 module.exports.MessageData = MessageData;
 module.exports.UserRoom = UserRoom;
+module.exports.Channel = Channel;
+module.exports.ChannelUser = ChannelUser;
 
 
 

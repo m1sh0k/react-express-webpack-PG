@@ -373,8 +373,9 @@ class Chat extends React.Component {
     };
     //unread msgs counter
     msgCounter =(a,e,unreadFlag)=> {
-        //console.log("msgCounter a: ",a," ,i: ",i);
-        let current = this.state[a][e];
+        console.log("msgCounter a: ",a," ,e: ",e);
+        let i = this.getUsersIdx(a,e);
+        let current = this.state[a][i];
         //console.log("msgCounter current: ",current);
         let currentUserMes = this.state.messagesStore[a][e];
         if(!unreadFlag) current.allMesCounter = current.allMesCounter + 1;
@@ -553,7 +554,7 @@ class Chat extends React.Component {
         const elemToScroll = this.refs[mesId];
         if(elemToScroll === undefined) {
             let messagesStore = this.state.messagesStore;
-            let itmName = this.state[this.state.arrayBlockHandlerId][this.state.messageBlockHandlerId]
+            let itmName = this.state[this.state.arrayBlockHandlerId][this.state.messageBlockHandlerId].name
             let a = this.state.arrayBlockHandlerId;
             this.socket.emit(a === "rooms" ? 'getRoomLog' : a === "channels" ? 'getChannelLog' : 'getUserLog',itmName,null,mesId,(err,arr)=>{
                 console.log("getUserLog arr: ",arr," ,err: ",err);
@@ -1008,7 +1009,7 @@ class Chat extends React.Component {
     setAsRead = (itmName,idx)=>{
         console.log("setAsRead itmName: ",itmName," ,idx: ",idx);
         let a = this.state.arrayBlockHandlerId
-        this.socket.emit('setMesStatus',idx,itmName,(err)=>{
+        this.socket.emit('setMesStatus',idx,a,itmName,(err)=>{
             if(err) {
                 this.setState({
                     modalWindow:true,
@@ -1109,7 +1110,7 @@ class Chat extends React.Component {
                 });
                 break;
             default:
-                //console.log("onContextMenuBtnResponse Sorry, we are out of " + res + ".");
+                console.log("onContextMenuBtnResponse Sorry, we are out of " + res + ".");
         }
     };
 
@@ -1118,13 +1119,13 @@ class Chat extends React.Component {
         console.log("forwardHandler forwardTo: ",forwardTo,", forwardFrom: ",forwardFrom,", arrayFrowardTo: ",arrayFrowardTo,", arrayFrowardFrom: ",arrayFrowardFrom);
         this.socket.emit('messageForward', this.state.selectModMsgList, forwardTo,forwardFrom,arrayFrowardTo,arrayFrowardFrom, (err, mesArray) => {//
             if (err) {
-                //console.log("messageForward: ", err);
+                console.log("messageForward: ", err);
                 this.setState({
                     modalWindow: true,
                     err: {message: err},
                 })
             } else {
-                //console.log("messageForward successful updatedMes: ", mesArray);
+                console.log("messageForward successful updatedMes: ", mesArray);
                 mesArray.forEach(itm => this.printMessage(itm, arrayFrowardTo,forwardTo));
                 this.setState({
                     isForward: false,

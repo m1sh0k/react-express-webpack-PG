@@ -487,6 +487,7 @@ module.exports = function (server) {
                 console.log("setMesStatus: indexArr: ",idx," ,itmType: ",itmType,' ,itmName: ',itmName);
                 let reqUser,reqRoom,reqChannel;
                 let user = await User.findOne({where:{username:username}});//set user message status
+
                 await MessageData.update(
                     {status: true},
                     {where:{
@@ -649,10 +650,10 @@ module.exports = function (server) {
                 let fromUser,toUser,fromRoom,toRoom;
                 let forwardedMesArr,idArr;
                 switch (arrayFrowardFrom){
-                    case "users":
+                    case "contacts":
                         //from users
                         switch (arrayFrowardTo){
-                            case "users":
+                            case "contacts":
                                 //to users
                                 console.log('messageForward2 fUtU');
                                 fromUser = await User.findOne({where:{username:from},include:[{model: User,as:'contacts'},{model: User,as:'blockedContacts'}]});
@@ -713,7 +714,7 @@ module.exports = function (server) {
                     case "rooms":
                         //from rooms
                         switch (arrayFrowardTo){
-                            case "users":
+                            case "contacts":
                                 //to users
                                 console.log('messageForward2 fRtU');
                                 fromRoom = await Room.findOne({where:{name:from},include:[{model: User,as:'members'}, {model: User,as:'blockedMembers'}]});

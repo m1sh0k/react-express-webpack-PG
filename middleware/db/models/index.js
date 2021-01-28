@@ -408,6 +408,11 @@ const Room = sequelize.define('room', {
         allowNull: false,
         unique: true
     },
+    private:{
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue:false,
+    }
 }, {tableName: 'room'});
 Room.sync();
 //
@@ -666,7 +671,7 @@ Room.setAdminInRoom = async function(roomName,adminRoom,newAdmin) {
         let roomData = await room.reformatData();
         if(roomData.members.find(itm => itm.username === adminRoom).admin !== true) return {err:"You are not admin of this group.",room:null};
         if(!roomData.members.some(itm => itm.username === newAdmin) || roomData.blockedMembers.some(itm => itm.username === newAdmin)) {
-            return {err:"User "+newAdmin+" is not a member of this group or is already on the block list.",room:null};
+            return {err:"User "+newAdmin+" is not a member of this group or is already to the block list.",room:null};
         }
         if(roomData.members.find(itm => itm.username === newAdmin).admin === true) return {err:"User "+newAdmin+" is already admin of this group.",room:null};
         let userNewAdmin = await User.findOne({where:{username:newAdmin}});
@@ -684,6 +689,46 @@ Room.setAdminInRoom = async function(roomName,adminRoom,newAdmin) {
     } catch (err) {
         console.log('setAdminInRoom err: ',err);
         return {err:err,room:null};
+    }
+};
+//joinToRoom
+Room.joinToRoom = async function(roomName,joined) {
+    console.log('joinToChannel channelName: ',roomName, ', joined: ',joined);
+    let Room = this;
+    let err = {};
+    try {
+        let user = await User.findOne({
+            where:{username:joined},
+            include: [
+                {model: User,as:'contacts'},
+                {model: User,as:'blockedContacts'},
+            ],
+        });
+        let room = await Room.findOne({
+            where:{name:roomName},
+            include:[
+                {model: User,as:'members'},
+                {model: User,as:'blockedMembers'},
+            ]
+        });
+        let userData = await user.reformatData();
+        let roomData = await room.reformatData();
+        console.log('joinToChannel userData: ',userData);
+        console.log('joinToChannel channelData: ',roomData);
+
+        if(roomData.members.includes(joined)) return {err:"User "+joined+" is already included in the group.",room:null,user:null};
+        if(roomData.blockedMembers.includes(joined)) return {err:"You are included to the block list.",room:null,user:null};
+        if(roomData.private) return {err:"The group is private. Entry by invitation only.",room:null,user:null};
+        if(userData.blockedContacts.includes(roomName)) return {err:"You include group named "+roomName+" to the block list.",room:null,user:null};
+        await room.addMember(user);
+        await user.addRoom(room,{through:{enable:true}});
+        await room.reload();
+        await user.reload();
+        console.log('joinToRoom room: ',room);
+        return {err:null,room:channel,user:user};
+    } catch (err) {
+        console.log('joinToChannel err: ',err);
+        return {err:err,room:null,user:null};
     }
 };
 //////////////////////////////////////////////////////////////////

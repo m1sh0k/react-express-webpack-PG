@@ -59,6 +59,7 @@ class UserBtn extends React.Component {
                 this.setState({onContextMenu:false});
                 break;
             case "leaveRoom":
+            case "leaveChannel":
             case "viewRoomData":
             case "moveRoomOnTop":
             case "chgRNtfStatus":

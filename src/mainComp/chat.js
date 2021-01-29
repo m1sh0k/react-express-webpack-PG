@@ -841,7 +841,7 @@ class Chat extends React.Component {
                 });
                 break;
             case "chgChNtfStatus":
-                console.log("onContextMenuHandler chgChNtfStatus  channelName: ",roomName);//it is case roomName -> channelName
+                console.log("onContextMenuHandler chgChNtfStatus  channelName: ",roomName);//in is case roomName -> channelName
                 this.socket.emit('chgChNtfStatus',roomName,(err,data)=>{
                     //console.log("leaveRoom cb err: ",err,", cb rooms: ",data);
                     if(err) {
@@ -937,6 +937,20 @@ class Chat extends React.Component {
                 //console.log("onContextMenuHandler reqAuth");
                 this.setState({reqAddMeName:username},()=>this.addMeHandler(true));
                 break;
+            case "leaveChannel":
+                console.log("onContextMenuHandler leaveChannel channelName: ",roomName);
+                this.socket.emit('leaveChannel',roomName,date,(err,data)=>{//in is case roomName -> channelName
+                    console.log("leaveChannel cb err: ",err,", cb channel: ",data);
+                    if(err) {
+                        this.setState({
+                            modalWindow:true,
+                            err:{message:err},
+                        })
+                    }else {
+                        this.setState({channels:data.channels});
+                    }
+                });
+                break;
             default:
                 console.log("onContextMenuHandler Sorry, we are out of " + res + ".");
         }
@@ -960,7 +974,25 @@ class Chat extends React.Component {
             }
         })
     };
-    //Channel functional//
+    //join me to room
+    joinToRoom =(roomName) => {
+        console.log("joinToRoom rN: ",roomName);
+        this.socket.emit('joinToRoom',roomName,Date.now(),(err,userData)=>{
+            console.log("joinToRoom res err: ",err," ,userData: ",userData);
+            if(err){
+                this.setState({
+                    modalWindow:true,
+                    err:{message:err},
+                })
+            }else {
+                this.setState({
+                    rooms:userData.rooms,
+                })
+            }
+        })
+    };
+    //Channel functional
+    //create Channel
     createChannel =(channelName)=>{
         //console.log("createRoom: ",roomName);
         this.socket.emit('createChannel',channelName,Date.now(),(err,userData)=>{
@@ -979,10 +1011,27 @@ class Chat extends React.Component {
             }
         })
     };
+    //join me to channel
+    joinToChannel =(channelName) => {
+        console.log("joinToChannel chN: ",channelName);
+        this.socket.emit('joinToChannel',channelName,Date.now(),(err,userData)=>{
+            console.log("joinToChannel res err: ",err," ,userData: ",userData);
+            if(err){
+                this.setState({
+                    modalWindow:true,
+                    err:{message:err},
+                })
+            }else {
+                this.setState({
+                    channels:userData.channels,
+                })
+            }
+        })
+    };
     //Triggers
     hideModal =()=> {
-    this.setState({modalWindow: false,modalWindowMessage:"",err:{}});
-};
+        this.setState({modalWindow: false,modalWindowMessage:"",err:{}});
+    };
 
     hideShow = (name) => {
         console.log('hideShow name: ',name);
@@ -1271,7 +1320,7 @@ class Chat extends React.Component {
                 key={i}
                 i={i}
                 name={name}
-                addMe={() => this.inviteMeToRoom(name)}
+                addMe={() => this.joinToRoom(name)}
                 roomList={true}
                 channelList={false}
             />
@@ -1301,7 +1350,7 @@ class Chat extends React.Component {
                 }
             </div>
             : "";
-        const filteredChannels = this.state.foundChannels.map((itm, i) =>
+        const filteredChannels = this.state.filteredChannels.map((itm, i) =>
                         <UserBtn
                             key={i}
                             name={itm.name}
@@ -1317,11 +1366,11 @@ class Chat extends React.Component {
                             username={this.state.user.username}
                             userNRSStatus={itm.members.some(itm => itm.username === this.state.user.username) ? itm.members.find(itm => itm.username === this.state.user.username).enable : ""}//user Room notification status
                         />)
-        const foundChannels = this.state.filteredChannels.length !== 0 ? this.state.foundChannels.map((name, i) => <UserBtn
+        const foundChannels = this.state.foundChannels.length !== 0 ? this.state.foundChannels.map((name, i) => <UserBtn
                 key={i}
                 i={i}
                 name={name}
-                addMe={() => this.inviteMeToChannel(name)}
+                addMe={() => this.joinToChannel(name)}
                 roomList={false}
                 channelList={true}
             />

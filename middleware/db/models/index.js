@@ -459,6 +459,11 @@ const UserRoom = sequelize.define('UserRoom', {
         allowNull: false,
         defaultValue:false,
     },
+    creator:{
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue:false,
+    },
 }, { timestamps: false,tableName: 'UserRoom' });
 UserRoom.sync();
 //
@@ -476,12 +481,22 @@ Room.prototype.reformatData = async function() {
     //console.log("reformatData: ",nameUserDB);
     nameUserDB.members = nameUserDB.members.map((itm) => {
             if(itm.rooms){
-                return {username:itm.username, enable:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.enable, admin:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.admin}
+                return {
+                    username:itm.username,
+                    enable:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.enable,
+                    admin:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.admin,
+                    creator:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.creator
+                }
             } else return itm.username
         })  || [];
     nameUserDB.blockedMembers = nameUserDB.blockedMembers.map((itm) => {
             if(itm.rooms){
-                return {username:itm.username, enable:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.enable, admin:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.admin}
+                return {
+                    username:itm.username,
+                    enable:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.enable,
+                    admin:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.admin,
+                    creator:itm.rooms.find(rn => rn.name === nameUserDB.name).UserRoom.creator
+                }
             } else return itm.username
         })  || [];
     return nameUserDB
@@ -693,7 +708,7 @@ Room.setAdminInRoom = async function(roomName,adminRoom,newAdmin) {
 };
 //joinToRoom
 Room.joinToRoom = async function(roomName,joined) {
-    console.log('joinToChannel channelName: ',roomName, ', joined: ',joined);
+    console.log('joinToRoom channelName: ',roomName, ', joined: ',joined);
     let Room = this;
     let err = {};
     try {
@@ -707,14 +722,14 @@ Room.joinToRoom = async function(roomName,joined) {
         let room = await Room.findOne({
             where:{name:roomName},
             include:[
-                {model: User,as:'members'},
-                {model: User,as:'blockedMembers'},
-            ]
+                {model: User,as:'members',include:{model:Channel,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                {model: User,as:'blockedMembers',include:{model:Channel,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}}
+            ],
         });
         let userData = await user.reformatData();
         let roomData = await room.reformatData();
-        console.log('joinToChannel userData: ',userData);
-        console.log('joinToChannel channelData: ',roomData);
+        console.log('joinToRoom userData: ',userData);
+        console.log('joinToRoom channelData: ',roomData);
 
         if(roomData.members.includes(joined)) return {err:"User "+joined+" is already included in the group.",room:null,user:null};
         if(roomData.blockedMembers.includes(joined)) return {err:"You are included to the block list.",room:null,user:null};
@@ -725,9 +740,9 @@ Room.joinToRoom = async function(roomName,joined) {
         await room.reload();
         await user.reload();
         console.log('joinToRoom room: ',room);
-        return {err:null,room:channel,user:user};
+        return {err:null,room:room,user:user};
     } catch (err) {
-        console.log('joinToChannel err: ',err);
+        console.log('joinToRoom err: ',err);
         return {err:err,room:null,user:null};
     }
 };
@@ -805,6 +820,7 @@ Channel.prototype.reformatData = async function() {
 };
 //
 //Channel methods
+//create Channel
 Channel.createChannel = async function(channelName,username,privateOpt) {
     let Channel = this;
     let err = {};
@@ -836,7 +852,7 @@ Channel.createChannel = async function(channelName,username,privateOpt) {
         return {err:err,channel:null,user:null};
     }
 };
-
+//invite User To Channel
 Channel.inviteUserToChannel = async function(channelName,invited,inviter) {
     console.log('inviteUserToChannel channelName: ',channelName, ', invited: ',invited);
     let Channel = this;
@@ -873,7 +889,7 @@ Channel.inviteUserToChannel = async function(channelName,invited,inviter) {
         return {err:err,channel:null,user:null};
     }
 };
-//joinToChannel
+//join To Channel
 Channel.joinToChannel = async function(channelName,joined) {
     console.log('joinToChannel channelName: ',channelName, ', joined: ',joined);
     let Channel = this;
@@ -889,13 +905,13 @@ Channel.joinToChannel = async function(channelName,joined) {
         let channel = await Channel.findOne({
             where:{name:channelName},
             include:[
-                {model: User,as:'members'},
-            ]
+                {model: User,as:'members',include:{model:Channel,as:'channels',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}}
+            ],
         });
         let userData = await user.reformatData();
         let channelData = await channel.reformatData();
-        console.log('joinToChannel userData: ',userData);
-        console.log('joinToChannel channelData: ',channelData);
+        console.log('DB joinToChannel userData: ',userData);
+        console.log('DB joinToChannel channelData: ',channelData);
 
         if(channelData.members.includes(joined)) return {err:"User "+joined+" is already included in the channel.",channel:null,user:null};
         if(channelData.private) return {err:"The channel is private. Entry by invitation only.",channel:null,user:null};
@@ -904,20 +920,20 @@ Channel.joinToChannel = async function(channelName,joined) {
         await user.addChannel(channel,{through:{enable:true}});
         await channel.reload();
         await user.reload();
-        console.log('joinToChannel channel: ',channel);
+        console.log('DB joinToChannel channel: ',channel);
         return {err:null,channel:channel,user:user};
     } catch (err) {
-        console.log('joinToChannel err: ',err);
+        console.log('DB joinToChannel err: ',err);
         return {err:err,channel:null,user:null};
     }
 };
-
-Channel.leaveChannel = async function(channelName,invited) {
+// leave Channel
+Channel.leaveChannel = async function(channelName,leftThe) {
     let Channel = this;
     let err = {};
     try {
         let user = await User.findOne({
-            where:{username:invited},
+            where:{username:leftThe},
             include: [
                 {model: User,as:'contacts'},
                 {model: User,as:'blockedContacts'},
@@ -926,25 +942,38 @@ Channel.leaveChannel = async function(channelName,invited) {
         let channel = await Channel.findOne({
             where:{name:channelName},
             include:[
-                {model: User,as:'members'},
-            ]
+                {model: User,as:'members',include:{model:Channel,as:'channels',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}}
+                ],
         });
+
+
         let userData = await user.reformatData();
         let channelData = await channel.reformatData();
-        console.log('inviteUserToRoom userData: ',userData);
-        console.log('inviteUserToRoom channelData: ',channelData);
-        if(!channelData.members.includes(invited)) return {err:"User "+invited+" is not included in the channel.",channel:null,user:null};
+        console.log('leaveChannel userData: ',userData);
+        console.log('leaveChannel channelData: ',channelData);
+        if(!channelData.members.find(itm => itm.username === leftThe)) return {err:"You are not member of this channel.",channel:null,user:null};
+        if(channelData.members.find(itm => itm.username === leftThe && itm.creator === true)) return {err:"Creator can not left the channel. Creator can only close channel.",channel:null,user:null};
         await channel.removeMember(user);
         await user.removeChannel(channel);
         await channel.reload();
         await user.reload();
         return {err:null,channel:channel,user:user};
     } catch (err) {
-        console.log('createChannel err: ',err);
+        console.log('leaveChannel err: ',err);
         return {err:err,channel:null,user:null};
     }
 };
+//close channel
+Channel.closeChannel = async function(channelName,creatorName) {
+    let Channel = this;
+    let err = {};
+    try {
 
+    } catch (err) {
+        console.log('closeChannel err: ',err);
+        return {err:err,channel:null,user:null};
+    }
+};
 
 
 

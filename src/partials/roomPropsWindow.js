@@ -49,7 +49,12 @@ class RoomPropsWindow extends React.Component {
                         {
                             currentRoom.members ?
                                 currentRoom.members.map((itm,i) =>
-                                    <p className={`chat-room-members-count ${itm.admin === true ? "admin" :""}`} key={i}><span>{itm.username}</span></p>
+                                    <p className={`chat-room-members-count ${itm.admin === true ? "admin" :""}`} key={i}>
+                                        {itm.creator === true ? "FOUNDER: " :""}
+                                        <span>
+                                            {itm.username}
+                                        </span>
+                                    </p>
                                 )
                             : ""
                         }

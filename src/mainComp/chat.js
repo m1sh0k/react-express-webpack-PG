@@ -974,7 +974,7 @@ class Chat extends React.Component {
             }
         })
     };
-    //join me to room
+    //join to room
     joinToRoom =(roomName) => {
         console.log("joinToRoom rN: ",roomName);
         this.socket.emit('joinToRoom',roomName,Date.now(),(err,userData)=>{
@@ -1011,7 +1011,7 @@ class Chat extends React.Component {
             }
         })
     };
-    //join me to channel
+    //join to channel
     joinToChannel =(channelName) => {
         console.log("joinToChannel chN: ",channelName);
         this.socket.emit('joinToChannel',channelName,Date.now(),(err,userData)=>{

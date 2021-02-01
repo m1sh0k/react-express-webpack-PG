@@ -801,7 +801,7 @@ module.exports = function (server) {
                     return cb(err,null,null)
                 } else {
                     room = await room.reformatData();
-                    console.log('joinToChannel channel: ',room);
+                    console.log('joinToChannel room: ',room);
                     let rCreator = room.members.find(itm => itm.creator === true).username;
                     console.log('joinToChannel channelCreator: ',rCreator);
                     let {err,mes} = await Message.messageHandler({sig:roomName,members:room.members, message:{ author: rCreator, text: username+" joined to channel.", status: false, date: dateNow}});

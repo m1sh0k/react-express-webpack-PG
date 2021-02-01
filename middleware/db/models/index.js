@@ -722,8 +722,8 @@ Room.joinToRoom = async function(roomName,joined) {
         let room = await Room.findOne({
             where:{name:roomName},
             include:[
-                {model: User,as:'members',include:{model:Channel,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
-                {model: User,as:'blockedMembers',include:{model:Channel,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}}
+                {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}}
             ],
         });
         let userData = await user.reformatData();

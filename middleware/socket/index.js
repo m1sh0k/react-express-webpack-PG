@@ -794,17 +794,20 @@ module.exports = function (server) {
         //join To Room
         socket.on('joinToRoom', async function(roomName,dateNow,cb){
             try{
-                console.log('joinToChannel: ',roomName,', joinedUser: ',username);
+                console.log('joinToRoom: ',roomName,', joinedUser: ',username);
                 let {err,room,user} = await Room.joinToRoom(roomName,username);
 
                 if(err) {
                     return cb(err,null,null)
                 } else {
                     room = await room.reformatData();
-                    console.log('joinToChannel room: ',room);
+                    console.log('joinToRoom room: ',room);
                     let rCreator = room.members.find(itm => itm.creator === true).username;
-                    console.log('joinToChannel channelCreator: ',rCreator);
-                    let {err,mes} = await Message.messageHandler({sig:roomName,members:room.members, message:{ author: rCreator, text: username+" joined to channel.", status: false, date: dateNow}});
+                    console.log('joinToRoom roomCreator: ',rCreator);
+                    let {err,mes} = await Message.messageHandler({
+                        sig:roomName,
+                        members:room.members.map(itm => itm.username),
+                        message:{ author: rCreator, text: username+" joined to channel.", status: false, date: dateNow}});
                     for (let name of room.members) {
                         if(globalChatUsers[name] && name !== username) {
                             socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateUserData',await aggregateUserData(name));
@@ -1243,7 +1246,10 @@ module.exports = function (server) {
                     console.log('joinToChannel channel: ',channel);
                     let chCreator = channel.members.find(itm => itm.creator === true).username;
                     console.log('joinToChannel channelCreator: ',chCreator);
-                    let {err,mes} = await Message.messageHandler({sig:channelName,members:channel.members, message:{ author: chCreator, text: username+" joined to channel.", status: false, date: dateNow}});
+                    let {err,mes} = await Message.messageHandler({
+                        sig:channelName,
+                        members:channel.members.map(itm => itm.username),
+                        message:{ author: chCreator, text: username+" joined to channel.", status: false, date: dateNow}});
                     for (let name of channel.members) {
                         if(globalChatUsers[name] && name !== username) {
                             socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateUserData',await aggregateUserData(name));

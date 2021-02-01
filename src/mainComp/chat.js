@@ -82,6 +82,8 @@ class Chat extends React.Component {
             resAddMeHandler:false,
             resAddMeAddMeName:"",
             addMeHandler:false,
+            joinToRoomHandler:false,
+            joinToChannelHandler:false,
             reqAddMeName:"",
 
             changeStatusHandler:false,
@@ -438,24 +440,6 @@ class Chat extends React.Component {
                         }
                     });
                     break;
-                case "channels":
-                    //console.log("sendMessage channels name: ", name);
-                    this.socket.emit('messageChannel', this.state.message, name, date, (err, mes) => {//This name means Channel Name
-                        if (err) {
-                            //console.log("sendMessage channel err: ", err);
-                            this.setState({
-                                modalWindow: true,
-                                err: {message: err},
-                            })
-                        } else {
-                            //console.log("sendMessage channel: ", mes);
-                            this.printMessage(mes, "channels", name);
-                            this.msgCounter("channels",  name);
-                            this.setState({message: ''}, () => this.scrollToBottom(this.refs.InpUl));
-                        }
-                    });
-                    break;
-
                 default:
                     console.log("sendMessage: Sorry, we are out of " + res + ".");
             }
@@ -576,12 +560,14 @@ class Chat extends React.Component {
 
     };
 
-    addMe =(name)=> {
+    addMe =(name,itmName)=> {
         //console.log("addMe: ",name);
         this.setState({
-            addMeHandler:true,
+            addMeHandler: itmName === "user",
+            joinToRoomHandler:itmName === "room",
+            joinToChannelHandler:itmName === "channel",
             reqAddMeName:name,
-            confirmMessage:"Send request to add user "+name+"?"
+            confirmMessage:"Send request to "+itmName+" name "+name+"?"
         })
     };
 
@@ -701,7 +687,7 @@ class Chat extends React.Component {
     //Right click handler
     onContextMenuHandler = async (res,username,roomName)=>{
         console.log("onContextMenuHandler res: ", res,' ,arrayBlockHandlerId: ',this.state.arrayBlockHandlerId);
-        let name = this.state.contacts[this.state.messageBlockHandlerId].name;//curent user in contacts
+
         let date = Date.now();
         switch (res) {
             case "shareLocation":
@@ -709,6 +695,7 @@ class Chat extends React.Component {
                     console.log("Latitude is :", position.coords.latitude);
                     console.log("Longitude is :", position.coords.longitude);
                     let data = {latitude:position.coords.latitude,longitude:position.coords.longitude};
+                    let name = this.state.contacts[this.state.messageBlockHandlerId].name;//curent user in contacts
                     this.socket.emit('message', 'console: shareLocation '+JSON.stringify(data),name, date, (err, mes) => {
                         if (err) {
                             //console.log("sendMessage contacts err: ", err);
@@ -727,6 +714,7 @@ class Chat extends React.Component {
                 break;
             case "shareContact":
                 console.log("onContextMenuHandler shareContact username: ",username);
+                let name = this.state.contacts[this.state.messageBlockHandlerId].name;//curent user in contacts
                 this.socket.emit('message', 'console: shareContact '+username,name, date, (err, mes) => {
                     if (err) {
                         //console.log("sendMessage contacts err: ", err);
@@ -827,7 +815,7 @@ class Chat extends React.Component {
                 },()=>this.hideShow("roomPropsWindow"));
                 break;
             case "leaveRoom":
-                //console.log("onContextMenuHandler leaveRoom roomName: ",roomName);
+                console.log("onContextMenuHandler leaveRoom roomName: ",roomName);
                 this.socket.emit('leaveRoom',roomName,date,(err,data)=>{
                     //console.log("leaveRoom cb err: ",err,", cb rooms: ",data);
                     if(err) {
@@ -975,21 +963,41 @@ class Chat extends React.Component {
         })
     };
     //join to room
-    joinToRoom =(roomName) => {
-        console.log("joinToRoom rN: ",roomName);
-        this.socket.emit('joinToRoom',roomName,Date.now(),(err,userData)=>{
-            console.log("joinToRoom res err: ",err," ,userData: ",userData);
-            if(err){
-                this.setState({
-                    modalWindow:true,
-                    err:{message:err},
-                })
-            }else {
-                this.setState({
-                    rooms:userData.rooms,
-                })
-            }
-        })
+    joinToRoomHandler =(confirmRes)=>{
+        if(confirmRes){
+            console.log("joinToRoom rN: ",this.state.reqAddMeName);
+            this.socket.emit('joinToRoom',this.state.reqAddMeName,Date.now(),(err,userData)=>{
+                console.log("joinToRoom res err: ",err," ,userData: ",userData);
+                if(err){
+                    this.setState({
+                        modalWindow:true,
+                        err:{message:err},
+                        joinToRoomHandler: false,
+                        confirmMessage:"",
+                        reqAddMeName:"",
+                        foundRooms:[],
+                        searchInput:false
+                    })
+                }else {
+                    this.setState({
+                        rooms:userData.rooms,
+                        joinToRoomHandler: false,
+                        confirmMessage:"",
+                        reqAddMeName:"",
+                        foundRooms:[],
+                        searchInput:false
+                    })
+                }
+                this.refs["nameSearchInp"].value = "";
+            })
+        }else{
+            this.setState({
+                joinToRoomHandler: false,
+                confirmMessage:"",
+                reqAddMeName:"",
+                searchInput:false
+            });
+        }
     };
     //Channel functional
     //create Channel
@@ -1012,21 +1020,41 @@ class Chat extends React.Component {
         })
     };
     //join to channel
-    joinToChannel =(channelName) => {
-        console.log("joinToChannel chN: ",channelName);
-        this.socket.emit('joinToChannel',channelName,Date.now(),(err,userData)=>{
-            console.log("joinToChannel res err: ",err," ,userData: ",userData);
-            if(err){
-                this.setState({
-                    modalWindow:true,
-                    err:{message:err},
-                })
-            }else {
-                this.setState({
-                    channels:userData.channels,
-                })
-            }
-        })
+    joinToChannelHandler =(confirmRes)=>{
+        if(confirmRes){
+            console.log("joinToChannel chN: ",this.state.reqAddMeName);
+            this.socket.emit('joinToChannel',this.state.reqAddMeName,Date.now(),(err,userData)=>{
+                console.log("joinToChannel res err: ",err," ,userData: ",userData);
+                if(err){
+                    this.setState({
+                        modalWindow:true,
+                        err:{message:err},
+                        joinToChannelHandler: false,
+                        confirmMessage:"",
+                        reqAddMeName:"",
+                        foundChannels:[],
+                        searchInput:false
+                    })
+                }else {
+                    this.setState({
+                        rooms:userData.rooms,
+                        joinToChannelHandler: false,
+                        confirmMessage:"",
+                        reqAddMeName:"",
+                        foundChannels:[],
+                        searchInput:false
+                    })
+                }
+                this.refs["nameSearchInp"].value = "";
+            })
+        }else{
+            this.setState({
+                joinToChannelHandler: false,
+                confirmMessage:"",
+                reqAddMeName:"",
+                searchInput:false
+            });
+        }
     };
     //Triggers
     hideModal =()=> {
@@ -1121,7 +1149,6 @@ class Chat extends React.Component {
                 break;
             case "Delete Selected":
                 //console.log("onContextMenuBtnResponse Delete Message: currentUser: ",currentUser,',','selectModMsgList: ',this.state.selectModMsgList);
-                //this.state.arrayBlockHandlerId ? name : [name,this.state.user.username]
                 this.socket.emit('deleteMessages',currentUser,this.state.selectModMsgList, (err)=>{
                     if(err) {
                         this.setState({
@@ -1236,7 +1263,6 @@ class Chat extends React.Component {
                         />)
                 }
             </div> : "";
-
         const filteredContacts = this.state.filteredContacts.map((itm, i) => <UserBtn
                                 key={i}
                                 itm={itm}
@@ -1248,17 +1274,16 @@ class Chat extends React.Component {
                                 onContextMenuHandler={this.onContextMenuHandler}
                                 banList={false}
                                 roomList={false}
-                            />
-                        )
+                            />);
         const foundContacts = this.state.foundContacts.length !== 0 ?this.state.foundContacts.map((name, i) => <UserBtn
                 key={i}
                 i={i}
                 name={name}
-                addMe={() => this.addMe(name)}
+                addMe={() => this.addMe(name,"user")}
                 roomList={false}
                 channelList={false}
             />
-        ):""
+        ):"";
 
 
         const blockedUsers = this.state.blockedContacts.length !== 0 ? <div>
@@ -1320,7 +1345,7 @@ class Chat extends React.Component {
                 key={i}
                 i={i}
                 name={name}
-                addMe={() => this.joinToRoom(name)}
+                addMe={() => this.addMe(name,"room")}
                 roomList={true}
                 channelList={false}
             />
@@ -1370,7 +1395,7 @@ class Chat extends React.Component {
                 key={i}
                 i={i}
                 name={name}
-                addMe={() => this.joinToChannel(name)}
+                addMe={() => this.addMe(name,"channel")}
                 roomList={false}
                 channelList={true}
             />
@@ -1388,6 +1413,14 @@ class Chat extends React.Component {
                     : ""}
                 {this.state.addMeHandler ?
                     <Confirm confirmHandler={this.addMeHandler} show={this.state.addMeHandler}
+                             message={this.state.confirmMessage}/>
+                    : ""}
+                {this.state.joinToRoomHandler ?
+                    <Confirm confirmHandler={this.joinToRoomHandler} show={this.state.joinToRoomHandler}
+                             message={this.state.confirmMessage}/>
+                    : ""}
+                {this.state.joinToChannelHandler ?
+                    <Confirm confirmHandler={this.joinToChannelHandler} show={this.state.joinToChannelHandler}
                              message={this.state.confirmMessage}/>
                     : ""}
                 {this.state.resAddMeHandler ?
@@ -1610,7 +1643,7 @@ class Chat extends React.Component {
                                                             <input name="historySearchInp" ref="historySearchInp"
                                                                    className={`form-control searchInChat ${this.state.showHistorySearch ? "show" : ""}`}
                                                                    autoComplete="off" autoFocus placeholder="Search..."
-                                                                   onChange={ev => this.historySearch(ev.target.value, this.state.arrayBlockHandlerId === "room" ? eUser : eUser.name)}/>
+                                                                   onChange={ev => this.historySearch(ev.target.value, this.state.arrayBlockHandlerId === "rooms" ? eUser : eUser.name)}/>
                                                             <div className='modal-main-btnRight-center'
                                                                  onClick={() => this.hideShow("showHistorySearch")}>X
                                                             </div>
@@ -1740,31 +1773,36 @@ class Chat extends React.Component {
                                                             ) : ("")
                                                         }
                                                     </ul>
+                                                    {
+                                                        (this.state.arrayBlockHandlerId === "channels" &&
+                                                            this.state.channels[this.state.messageBlockHandlerId].members.find(itm => itm.username === this.state.user.username).admin) ||
+                                                        (this.state.arrayBlockHandlerId === "rooms") || (this.state.arrayBlockHandlerId === "contacts") ?
+                                                            <form onSubmit={(ev) => {
+                                                                ev.preventDefault();
+                                                                //ev.stopPropagation();
+                                                                this.sendMessage(eUser.name)
+                                                            }} name="chatRoomForm" className="writeMessWrapp">
+                                                                <div className="input-group writeMess">
+                                                                    <input name="formInp" className="form-control writeChatMess"
+                                                                        // autoComplete="off"
+                                                                           autoFocus placeholder="Message..."
+                                                                           value={this.state.message}
+                                                                           onChange={ev => (this.typing(eUser.name, ev))}
 
-                                                    <form onSubmit={(ev) => {
-                                                        ev.preventDefault();
-                                                        //ev.stopPropagation();
-                                                        this.sendMessage(eUser.name)
-                                                    }} name="chatRoomForm" className="writeMessWrapp">
-                                                        <div className="input-group writeMess">
-                                                            <input name="formInp" className="form-control writeChatMess"
-                                                                // autoComplete="off"
-                                                                   autoFocus placeholder="Message..."
-                                                                   value={this.state.message}
-                                                                   onChange={ev => (this.typing(eUser.name, ev))}
+                                                                    />
+                                                                    {
+                                                                        (a !== "blockedContacts") ?
+                                                                            <button type='submit'
+                                                                                    name="msgBtn" className="btn">
+                                                                                SEND</button> :
+                                                                            <button onClick={() => this.resAddMe(eUser.name)}
+                                                                                    name="msgBtn"
+                                                                                    type="button" className="btn">ALLOW USER</button>
+                                                                    }
+                                                                </div>
+                                                            </form> : ""
+                                                    }
 
-                                                            />
-                                                            {
-                                                                (a !== "blockedContacts") ?
-                                                                    <button type='submit'
-                                                                            name="msgBtn" className="btn">
-                                                                        SEND</button> :
-                                                                    <button onClick={() => this.resAddMe(eUser.name)}
-                                                                            name="msgBtn"
-                                                                            type="button" className="btn">ALLOW USER</button>
-                                                            }
-                                                        </div>
-                                                    </form>
                                                 </div> :
                                                 <Map
                                                     location={this.state.location}

@@ -856,8 +856,8 @@ module.exports = function (server) {
                 let room = await Room.findOne({
                     where:{name:roomName},
                     include: [
-                        {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
-                        {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+                        {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                        {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
                     ],
                 });
                 room = await room.reformatData();
@@ -948,22 +948,20 @@ module.exports = function (server) {
                 let room = await Room.findOne({
                     where:{name:roomName},
                     include: [
-                        {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
-                        {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+                        {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                        {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
                     ],
                 });
                 let roomData = await room.reformatData();
-                let enabledUsers = roomData.members.filter(itm => itm.enable).map(itm => itm.username);//do not send to users who have disabled notifications
-                room.members = room.members.map(itm => itm.username);
-                room.blockedMembers = room.blockedMembers.map(itm => itm.username);
-                console.log('messageRoom room: ',room);
-
-                if(!room.members.includes(username)) return cb("You are not a member of the group.",null);
-                if(room.blockedMembers.includes(username)) return cb("You have been included in the block list. Send messages to you is no longer available.",null);
-                let {err,mes} = await Message.messageHandler({sig:roomName,members:room.members, message:{ author: username, text: text, status: false, date: dateNow}});
-
-                console.log('messageRoom enabledUsers: ',enabledUsers);
-                for(let name of enabledUsers) {
+                let members = roomData.members.map(itm => itm.username);
+                let blockedMembers = room.blockedMembers.map(itm => itm.username);
+                console.log('messageChannel members: ',members);
+                // room.members = room.members.map(itm => itm.username);
+                // room.blockedMembers = room.blockedMembers.map(itm => itm.username);
+                if(!members.includes(username)) return cb("You are not a member of the group.",null);
+                if(blockedMembers.includes(username)) return cb("You have been included in the block list. Send messages to you is no longer available.",null);
+                let {err,mes} = await Message.messageHandler({sig:roomName,members:members, message:{ author: username, text: text, status: false, date: dateNow}});
+                for(let name of members) {
                     if(globalChatUsers[name] && name !== username) socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageRoom',mes);
                 }
                 cb(null,mes);
@@ -1055,8 +1053,8 @@ module.exports = function (server) {
                 let room = await Room.findOne({
                     where:{name:roomName},
                     include:[
-                        {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
-                        {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin']}}},
+                        {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                        {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
                     ]
                 });
                 let roomData = await room.reformatData();
@@ -1292,6 +1290,34 @@ module.exports = function (server) {
             } catch (err) {
                 console.log("leaveChannel err: ",err);
                 cb(err,null)
+            }
+        });
+        //channel message handler
+        socket.on('messageChannel', async function  (text,channelName,dateNow,cb) {
+            try {
+                console.log('messageChannel text: ',text, 'channelName: ',channelName, 'dateNow: ',dateNow);
+                if (text.length === 0) return;
+                if (text.length >= 500) return cb("To long message.",null);
+                let channel = await Channel.findOne({
+                    where:{name:channelName},
+                    include: [
+                        {model: User,as:'members',include:{model:Channel,as:'channels',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                    ],
+                });
+                let channelData = await channel.reformatData();
+                let members = channelData.members.map(itm => itm.username);
+                console.log('messageChannel members: ',members);
+
+                if(!members.includes(username)) return cb("You are not a member of this channel.",null);
+                if(!channelData.members.find(itm => itm.username === username).admin) return cb("You are not a admin of this channel.",null);
+                let {err,mes} = await Message.messageHandler({sig:channelName,members:members, message:{ author: username, text: text, status: false, date: dateNow}});
+                for(let name of members) {
+                    if(globalChatUsers[name] && name !== username) socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageChannel',mes);
+                }
+                cb(null,mes);
+            } catch (err) {
+                console.log("messageChannel err: ",err);
+                cb(err,null);
             }
         });
     });

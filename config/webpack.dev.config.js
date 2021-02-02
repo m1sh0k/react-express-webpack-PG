@@ -38,9 +38,10 @@ module.exports = {
                 use: [ 'style-loader', 'css-loader' ]
             },
             {
-                test: /.(ttf|otf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
+                test: /.(ttf|otf|eot|svg|mp3|woff(2)?)(\?[a-z0-9]+)?$/,
                 use: [{loader: 'file-loader'}]
-            }, {
+            },
+            {
                 test: /\.(png|jpg|gif)$/,
                 use: [
                     {
@@ -50,7 +51,11 @@ module.exports = {
                         }
                     }
                 ]
-            }
+            },
+            // {
+            //     test: /\.mp3$/,
+            //     loader: 'file-loader'
+            // }
 
         ]
     },

@@ -19,6 +19,10 @@ import addChannelImg from '../../public/img/speaker.png'
 import addUserImg from '../../public/img/add-user-button.png'
 import OnContextMenuBtn from '../partials/onContextMenuBtn.js'
 import Map from '../partials/openStreetMap.js'
+//sounds
+import Sound from 'react-sound'
+import soundFile from '../../public/sounds/swiftly-610.mp3'
+
 
 
 
@@ -116,6 +120,8 @@ class Chat extends React.Component {
             isForward: false,
             selectModMsgList:[],
             btnList: ['Find Message','Select Mod'],
+            //sound
+            playIncomingMes:false
             //['Find Message','Select Mod','Delete Selected','Clear Selected','Forward Selected','Copy Selected as Text'],
         };
     }
@@ -245,7 +251,7 @@ class Chat extends React.Component {
             })
             .on('messageChannel',(data)=>{
                 //messageChannel receiver
-                console.log('messageRoom receiver: ',data);
+                console.log('messageChannel receiver: ',data);
                 this.printMessage(data,"channels",data.sig);
                 this.msgCounter("channels",data.sig);
             })
@@ -377,8 +383,9 @@ class Chat extends React.Component {
     msgCounter =(a,e,unreadFlag)=> {
         console.log("msgCounter a: ",a," ,e: ",e);
         let i = this.getUsersIdx(a,e);
+        console.log("msgCounter i: ",i);
         let current = this.state[a][i];
-        //console.log("msgCounter current: ",current);
+        console.log("msgCounter current: ",current);
         let currentUserMes = this.state.messagesStore[a][e];
         if(!unreadFlag) current.allMesCounter = current.allMesCounter + 1;
         let unReadMes = currentUserMes.filter(itm => itm.author !== this.state.user.username &&
@@ -440,14 +447,31 @@ class Chat extends React.Component {
                         }
                     });
                     break;
+                case "channels":
+                    //console.log("sendMessage channels name: ", name);
+                    this.socket.emit('messageChannel', this.state.message, name, date, (err, mes) => {//This name means Channel Name
+                        if (err) {
+                            //console.log("sendMessage channel err: ", err);
+                            this.setState({
+                                modalWindow: true,
+                                err: {message: err},
+                            })
+                        } else {
+                            //console.log("sendMessage channel: ", mes);
+                            this.printMessage(mes, "channels", name);
+                            this.msgCounter("channels",  name);
+                            this.setState({message: ''}, () => this.scrollToBottom(this.refs.InpUl));
+                        }
+                    });
+                    break;
                 default:
                     console.log("sendMessage: Sorry, we are out of " + res + ".");
             }
 
     };
-    //send req for log data
-    getUsersIdx =(a,i)=> {
-        return this.state[a].map((itm)=>{return itm.name;}).indexOf(i);
+    //
+    getUsersIdx =(a,e)=> {
+        return this.state[a].map( itm => itm.name).indexOf(e);
     };
     //pushing incoming msgs
     printMessage =(data,itmType,itmName)=> {
@@ -455,6 +479,7 @@ class Chat extends React.Component {
         if(!messagesStore[itmType][itmName]) messagesStore[itmType][itmName] = [];
         messagesStore[itmType][itmName].push(data);
         this.setState({messagesStore});
+        this.setState({playIncomingMes:true});
     };
 
     //User functional//
@@ -1221,6 +1246,17 @@ class Chat extends React.Component {
         this.setState({location:loc},()=> this.setState({showMap:true}));
     };
 
+    handleSongFinishedPlaying =(soundName)=>{
+        console.log('handleSongFinishedPlaying soundName: ',soundName);
+        switch (soundName){
+            case 'playIncomingMes':
+                this.setState({playIncomingMes:false})
+                break;
+            default:
+                console.log("handleSongFinishedPlaying Sorry, we are out of soundName:" + soundName + ".");
+        }
+    }
+
     render() {
         console.log('/chat user:', this.state);
         if (this.state.errorRedirect) {
@@ -1403,6 +1439,13 @@ class Chat extends React.Component {
 
         return (
             <Page user={this.state.user} title="CHAT PAGE" className="container">
+                {this.state.playIncomingMes ? <Sound
+                    url={soundFile}
+                    playStatus={Sound.status.PLAYING}//playStatus={Sound.status.PLAYING}//STOPPED,PAUSED
+                    onFinishedPlaying={()=> this.handleSongFinishedPlaying('playIncomingMes')}
+                    />
+                    :""
+                }
                 {this.state.connectionLost ?
                     <Modal show={this.state.connectionLost} err={this.state.err}
                            message={"Connection lost! Wait until the connection is established."}/>
@@ -1549,7 +1592,7 @@ class Chat extends React.Component {
                                                 (() => {
                                                     //console.log('userList data filteredContacts: ',this.state.filteredContacts, ", foundContacts: ",this.state.foundContacts)
                                                     if(this.state.searchInput === false) {
-                                                        console.log('full List')
+                                                        //console.log('full List')
                                                         return (
                                                             <div>
                                                                 {contacts}
@@ -1559,7 +1602,7 @@ class Chat extends React.Component {
                                                             </div>
                                                         )
                                                     }else {
-                                                        console.log('search List')
+                                                        //console.log('search List')
                                                         return (
 
                                                                 <div>

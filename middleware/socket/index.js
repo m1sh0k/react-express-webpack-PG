@@ -807,7 +807,7 @@ module.exports = function (server) {
                     let {err,mes} = await Message.messageHandler({
                         sig:roomName,
                         members:room.members.map(itm => itm.username),
-                        message:{ author: rCreator, text: username+" joined to channel.", status: false, date: dateNow}});
+                        message:{ author: rCreator, text: username+" joined to group.", status: false, date: dateNow}});
                     for (let name of room.members) {
                         if(globalChatUsers[name] && name !== username) {
                             socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateUserData',await aggregateUserData(name));
@@ -828,17 +828,20 @@ module.exports = function (server) {
             try {
                 console.log("leaveRoom: ",roomName);
                 let {err,room,user} = await Room.leaveRoom(roomName,username);
-                if(!room) return cb(null,await aggregateUserData(username));
                 if(err) {
                     console.log('leaveRoom err: ',err);
                     return cb(err,null)
                 }
                 else {
-                    let {err,mes} = await Message.messageHandler({sig:roomName,members:room.members,message:{ author: username, text: username+" left the group.", status: false, date: dateNow}});
-                    for (let name of room.members) {
+                    room = await room.reformatData();
+                    console.log('leaveRoom room: ',room);
+                    let rCreator = room.members.find(itm => itm.creator === true).username;
+                    let members = room.members.map(itm => itm.username);
+                    let {err,mes} = await Message.messageHandler({sig:roomName,members:members,message:{ author: rCreator, text: username+" left the group.", status: false, date: dateNow}});
+                    for (let name of members) {
                         if(globalChatUsers[name]) {
                             socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateUserData',await aggregateUserData(name));
-                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageRoom',mes);
+                            socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageChannel',mes);
                         }
                     }
                     globalChatUsers[username].rooms = globalChatUsers[username].rooms.filter(chN => chN !== roomName);
@@ -873,50 +876,6 @@ module.exports = function (server) {
                     mes = await Message.findAll({
                         where:{
                             sig:roomName,
-                            _id:{[Op.gte]:reqMesId}
-                        },
-                        order: [
-                            [ 'createdAt', 'DESC' ],
-                        ],
-                        include:{
-                            model:User,
-                            as:'recipients',
-                            attributes: ['username'],
-                            through: {attributes: ['status']}
-                        }
-                    });
-                    let promisesMes = mes.map(itm => itm.reformatData());
-                    mes = await Promise.all(promisesMes);
-                    mes.sort((a,b) => a.createdAt - b.createdAt);
-                }
-                return cb(null,mes);
-            } catch (err) {
-                console.log("getRoomLog err: ",err);
-                cb(err,null)
-            }
-        });
-        //get channel log
-        socket.on('getChannelLog', async function  (channelName,reqMesCountCb,reqMesId,cb) {
-            try {
-                console.log("getChannelLog: ",channelName);
-                let channel = await Channel.findOne({
-                    where:{name:channelName},
-                    include: [
-                        {model: User,as:'members',include:{model:Channel,as:'channels',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
-                    ],
-                });
-                channel = await channel.reformatData();
-                console.log("getChannelLog channel: ",channel);
-                if(!channel) return cb("Error Channel do not exist!",null);
-                if(!channel.members.some(itm => itm.username === username)) return cb("You are not a member of the channel.",null);
-
-                if(!reqMesId) {
-                    var {err,mes} = await Message.messageHandler({sig:channelName},reqMesCountCb);
-                    if(err) return cb(err,null);
-                }else {
-                    mes = await Message.findAll({
-                        where:{
-                            sig:channelName,
                             _id:{[Op.gte]:reqMesId}
                         },
                         order: [
@@ -1270,15 +1229,16 @@ module.exports = function (server) {
                 let {err,channel,user} = await Channel.leaveChannel(channelName,username);
 
                 if(err) {
-                    console.log('leaveRoom err: ',err);
+                    console.log('leaveChannel err: ',err);
                     return cb(err,null)
                 }
                 else {
                     channel = await channel.reformatData();
-                    console.log('leaveRoom channel: ',channel);
+                    console.log('leaveChannel channel: ',channel);
                     let chCreator = channel.members.find(itm => itm.creator === true).username;
-                    let {err,mes} = await Message.messageHandler({sig:channelName,members:channel.members,message:{ author: chCreator, text: username+" left the channel.", status: false, date: dateNow}});
-                    for (let name of channel.members) {
+                    let members = channel.members.map(itm => itm.username);
+                    let {err,mes} = await Message.messageHandler({sig:channelName,members:members,message:{ author: chCreator, text: username+" left the channel.", status: false, date: dateNow}});
+                    for (let name of members) {
                         if(globalChatUsers[name]) {
                             socket.broadcast.to(globalChatUsers[name].sockedId).emit('updateUserData',await aggregateUserData(name));
                             socket.broadcast.to(globalChatUsers[name].sockedId).emit('messageChannel',mes);
@@ -1318,6 +1278,50 @@ module.exports = function (server) {
             } catch (err) {
                 console.log("messageChannel err: ",err);
                 cb(err,null);
+            }
+        });
+        //get channel log
+        socket.on('getChannelLog', async function  (channelName,reqMesCountCb,reqMesId,cb) {
+            try {
+                console.log("getChannelLog: ",channelName);
+                let channel = await Channel.findOne({
+                    where:{name:channelName},
+                    include: [
+                        {model: User,as:'members',include:{model:Channel,as:'channels',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                    ],
+                });
+                channel = await channel.reformatData();
+                console.log("getChannelLog channel: ",channel);
+                if(!channel) return cb("Error Channel do not exist!",null);
+                if(!channel.members.some(itm => itm.username === username)) return cb("You are not a member of the channel.",null);
+
+                if(!reqMesId) {
+                    var {err,mes} = await Message.messageHandler({sig:channelName},reqMesCountCb);
+                    if(err) return cb(err,null);
+                }else {
+                    mes = await Message.findAll({
+                        where:{
+                            sig:channelName,
+                            _id:{[Op.gte]:reqMesId}
+                        },
+                        order: [
+                            [ 'createdAt', 'DESC' ],
+                        ],
+                        include:{
+                            model:User,
+                            as:'recipients',
+                            attributes: ['username'],
+                            through: {attributes: ['status']}
+                        }
+                    });
+                    let promisesMes = mes.map(itm => itm.reformatData());
+                    mes = await Promise.all(promisesMes);
+                    mes.sort((a,b) => a.createdAt - b.createdAt);
+                }
+                return cb(null,mes);
+            } catch (err) {
+                console.log("getRoomLog err: ",err);
+                cb(err,null)
             }
         });
     });

@@ -479,7 +479,21 @@ class Chat extends React.Component {
         if(!messagesStore[itmType][itmName]) messagesStore[itmType][itmName] = [];
         messagesStore[itmType][itmName].push(data);
         this.setState({messagesStore});
-        this.setState({playIncomingMes:true});
+        switch (itmType) {
+            case "rooms":
+            case "channels":
+                if(!this.state[itmType][this.getUsersIdx(itmType,itmName)].members.find(itm => itm.username === this.state.user.username).enable) return ;
+                console.log("play incoming rooms or channels mes sound enable")
+                this.setState({playIncomingMes:true});
+                break;
+            case "contacts":
+                console.log("play incoming contacts mes sound enable")
+                this.setState({playIncomingMes:true});
+                break;
+            default:
+                console.log("play incoming mes sound Sorry, we are out of " + itmType + ".");
+
+        }
     };
 
     //User functional//

@@ -55,6 +55,11 @@ const Contacts = sequelize.define('Contacts', {
         type: Sequelize.INTEGER,
         allowNull: false,
     },
+    enable:{//NtfStatus
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue:true,
+    },
 }, { timestamps: false,tableName: 'Contacts' });
 Contacts.sync();
 //
@@ -95,7 +100,6 @@ User.prototype.reformatData = async function() {
 };
 //user methods
 User.authorize = async function(paramAuth) {
-    let User = this;
     let user = {};
     let err = {};
     try {
@@ -121,7 +125,6 @@ User.authorize = async function(paramAuth) {
 };
 //
 User.userATC = async function (reqUser,contact) {//AddToContacts
-    let User = this;
     let user = {};
     console.log('userATC userReq: ',reqUser,",","moving contact: ",contact);
     try {
@@ -147,7 +150,6 @@ User.userATC = async function (reqUser,contact) {//AddToContacts
 };
 //
 User.userATBC = async function (reqUser,contact) {//AddToBlockedContacts
-    let User = this;
     let user = {};
     console.log('userATBC userReq: ',reqUser,",","moving contact: ",contact);
     try {
@@ -172,7 +174,6 @@ User.userATBC = async function (reqUser,contact) {//AddToBlockedContacts
 };
 //
 User.userMFBCTC = async function (reqUser,contact) {//MoveFromBlockedContactsToContacts
-    let User = this;
     let user = {};
     //console.log('userMFBCTC userReq: ',reqUser,",","moving contact: ",contact);
     try {
@@ -199,7 +200,6 @@ User.userMFBCTC = async function (reqUser,contact) {//MoveFromBlockedContactsToC
 };
 //
 User.userMFCTBC = async function (reqUser,contact) {//MoveFromContactsToBlockedContacts
-    let User = this;
     let user = {};
     //console.log('userMFBCTC userReq: ',reqUser,",","moving contact: ",contact);
     try {
@@ -226,7 +226,6 @@ User.userMFCTBC = async function (reqUser,contact) {//MoveFromContactsToBlockedC
 };
 //
 User.userRFAL = async function (reqUser,contact) {//RemoveFromAllList
-    let User = this;
     let user = {};
     console.log('userRFAL userReq: ',reqUser,",","moving contact: ",contact);
     try {
@@ -245,7 +244,6 @@ User.userRFAL = async function (reqUser,contact) {//RemoveFromAllList
 };
 //
 User.changeData = async function(paramAuth) {
-    let User = this;
     let user = {};
     let err = {};
     try {
@@ -346,10 +344,6 @@ Message.prototype.reformatData = async function() {
 };
 //message methods
 Message.messageHandler = async function (data,limit) {
-    var Message = this;
-    //let mes = {};
-    let err = {};
-    //let sig = setGetSig(data.members);
     console.log('DB messageHandler: ',data);
     try {
         if(data.message) {//write data
@@ -503,9 +497,7 @@ Room.prototype.reformatData = async function() {
 };
 //room methods
 Room.createRoom = async function(roomName,username) {
-    let Room = this;
     let room = {};
-    let err = {};
     try {
         let user = await User.findOne({where:{username:username}});
         room = await Room.findOne({where:{name:roomName}});
@@ -529,8 +521,6 @@ Room.createRoom = async function(roomName,username) {
 };
 // //invite user to room
 Room.inviteUserToRoom = async function(roomName,invited) {
-    let Room = this;
-    let err = {};
     try {
         let userArray = [];
 
@@ -584,44 +574,52 @@ Room.inviteUserToRoom = async function(roomName,invited) {
 };
 //leave  room
 Room.leaveRoom = async function(roomName,name) {
-    let Room = this;
-    let err = {};
     try {
         let user = await User.findOne({where:{username:name}});
-        let room = await Room.findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
-        let roomData = room.reformatData();
-        //if(roomData.members.find(itm => itm.name === name).admin === true) return {err:"You can not leave this group. You are admin.",room:null,user:null};
-        await user.removeRoom(room);
-        await user.reload();
+        let room = await Room.findOne({
+            where:{name:roomName},
+            include:[
+                {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                {model:User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+            ],
+        });
+        let roomData = await room.reformatData();
+        console.log('Room.leaveRoom roomData:',roomData);
+        if(roomData.members.find(itm => itm.username === name && itm.creator === true)) return {err:"Creator can not left the group. Creator can only close group.",channel:null,user:null};
         await room.removeMember(user);
-        room = await Room.findOne({where:{name:roomName},include:[{model:User,as:'members'},{model:User,as:'blockedMembers'}]});
-        roomData = await room.reformatData();
-        console.log('Room.leaveRoom room:',roomData);
-        if(roomData.members.length === 0) {
-            //Delete room protocol. if no one user left.
-            for(let itm of roomData.blockedMembers) {
-                let user = await User.findOne({where:{username:name}});
-                await user.removeRoom(room)
-            }
-            let mes = await Message.findAll({where:{sig:roomName}});
-            let mesArr = mes.map(itm => itm._id);
-            await room.setBlockedMembers([]);
-            await Room.destroy({where: {_id: room._id}});
-            console.log("Message.destroy arr: ",mesArr);
-            await Message.destroy({where: {_id: mesArr}});
-            console.log("Delete room protocol successful done");
-            return {err:null,room:null,user:user};
-        }
-        return {err:null,room:roomData,user:user};
+        await user.removeRoom(room);
+        await room.reload();
+        await user.reload();
+        return {err:null,room:room,user:user};
     } catch (err) {
         console.log('leaveRoom err: ',err);
         return {err:err,room:null,user:null};
     }
 };
+//close room
+Room.closeRoom = async function(roomName,creatorName) {
+    try {
+        let user = await User.findOne({where:{username:creatorName}});
+        let room = await Room.findOne({
+            where:{name:roomName},
+            include:[
+                {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                {model:User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+            ],
+        });
+        let mes = await Message.findAll({where: {sig:roomName}});
+        let roomData = room.reformatData();
+        if(!roomData.members.find(itm => itm.username === creatorName && itm.creator === true)) return {err:"You are not creator of this group.",room:null,user:null};
+        await room.destroy();
+        await mes.destroy();
+        return {err:null};
+    } catch (err) {
+        console.log('closeRoom err: ',err);
+        return {err:err};
+    }
+};
 //block user in room
 Room.blockUserInRoom = async function(roomName,adminRoom,blocked) {
-    let Room = this;
-    let err = {};
     try {
         let room = await Room.findOne({
             where:{name:roomName},
@@ -647,8 +645,6 @@ Room.blockUserInRoom = async function(roomName,adminRoom,blocked) {
 };
 //unblock user in room
 Room.unblockUserInRoom = async function(roomName,adminRoom,unblocked) {
-    let Room = this;
-    let err = {};
     try {
         let room = await Room.findOne({
             where:{name:roomName},
@@ -673,8 +669,6 @@ Room.unblockUserInRoom = async function(roomName,adminRoom,unblocked) {
 //set admin room
 Room.setAdminInRoom = async function(roomName,adminRoom,newAdmin) {
     console.log("setAdminInRoom roomName:",roomName, " ,adminRoom: ",adminRoom," ,newAdmin: ",newAdmin)
-    let Room = this;
-    let err = {};
     try {
         let room = await Room.findOne({
             where:{name:roomName},
@@ -709,8 +703,6 @@ Room.setAdminInRoom = async function(roomName,adminRoom,newAdmin) {
 //joinToRoom
 Room.joinToRoom = async function(roomName,joined) {
     console.log('joinToRoom channelName: ',roomName, ', joined: ',joined);
-    let Room = this;
-    let err = {};
     try {
         let user = await User.findOne({
             where:{username:joined},
@@ -822,8 +814,6 @@ Channel.prototype.reformatData = async function() {
 //Channel methods
 //create Channel
 Channel.createChannel = async function(channelName,username,privateOpt) {
-    let Channel = this;
-    let err = {};
     try {
         let user = await User.findOne({where:{username:username}});
         let channel = await Channel.findOne({where:{name:channelName}});
@@ -855,8 +845,6 @@ Channel.createChannel = async function(channelName,username,privateOpt) {
 //invite User To Channel
 Channel.inviteUserToChannel = async function(channelName,invited,inviter) {
     console.log('inviteUserToChannel channelName: ',channelName, ', invited: ',invited);
-    let Channel = this;
-    let err = {};
     try {
         let user = await User.findOne({
             where:{username:invited},
@@ -892,8 +880,6 @@ Channel.inviteUserToChannel = async function(channelName,invited,inviter) {
 //join To Channel
 Channel.joinToChannel = async function(channelName,joined) {
     console.log('joinToChannel channelName: ',channelName, ', joined: ',joined);
-    let Channel = this;
-    let err = {};
     try {
         let user = await User.findOne({
             where:{username:joined},
@@ -929,8 +915,6 @@ Channel.joinToChannel = async function(channelName,joined) {
 };
 // leave Channel
 Channel.leaveChannel = async function(channelName,leftThe) {
-    let Channel = this;
-    let err = {};
     try {
         let user = await User.findOne({
             where:{username:leftThe},
@@ -965,8 +949,6 @@ Channel.leaveChannel = async function(channelName,leftThe) {
 };
 //close channel
 Channel.closeChannel = async function(channelName,creatorName) {
-    let Channel = this;
-    let err = {};
     try {
 
     } catch (err) {

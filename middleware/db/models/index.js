@@ -960,6 +960,7 @@ Channel.closeChannel = async function(channelName,creatorName) {
 
 
 module.exports.User = User;
+module.exports.Contacts = Contacts;
 module.exports.Message = Message;
 module.exports.Room = Room;
 module.exports.MessageData = MessageData;

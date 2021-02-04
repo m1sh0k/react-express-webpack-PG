@@ -4,6 +4,7 @@ var sessionStore = require('../db/sessionStore');
 var HttpError = require('./../error/index').HttpError;
 var DevError = require('./../error/index').DevError;
 var User = require('../db/models/index').User;
+var Contacts = require('../db/models/index').Contacts;
 var Message = require('../db/models/index').Message;
 var Room = require('../db/models/index').Room;
 var Channel = require('../db/models/index').Channel;
@@ -111,12 +112,14 @@ async function aggregateUserData(username) {
                 ],
             });
             let nameUserDB =  await data.reformatData();
+            let ntfSt = await Contacts.findOne({where:{userId:userData._id, contactId:nameUserDB._id}});
+            console.log("aggDataRooms ntfSt: ",ntfSt);
             let banned = nameUserDB.blockedContacts.includes(username);
             let authorized =  !(!nameUserDB.contacts.includes(username) && !nameUserDB.blockedContacts.includes(username));
             let {err,mes} = await Message.messageHandler({sig:setGetSig([username,name])});
 
             let col = mes.filter(itm => itm.author !== username && itm.recipients[0].status === false).length;
-            return contacts[i] = {name:name,  msgCounter :col, allMesCounter: mes.length, typing:false, onLine:status, banned:banned, authorized:authorized, created_at:nameUserDB.createdAt, userId:nameUserDB._id}
+            return contacts[i] = {name:name,  msgCounter :col, allMesCounter: mes.length, typing:false, onLine:status, banned:banned, authorized:authorized, created_at:nameUserDB.createdAt, userId:nameUserDB._id,enable:ntfSt.enable}
         });
         let bL = blockedContacts.map(async (name,i) =>{
             let status = !!globalChatUsers[name];
@@ -1065,6 +1068,36 @@ module.exports = function (server) {
                 cb(null,await aggregateUserData(username))
             } catch (err) {
                 console.log("setRoomAdmin err: ",err);
+                cb(err,null)
+            }
+        });
+        //enable/disable user notification status
+        socket.on('chgUNtfStatus', async function  (userName,cb) {
+            try {
+                console.log('changeNtfStatus userName: ',userName);
+                let user = await User.findOne({
+                    where:{username:username},
+                    include:[
+                        {model: User,as:'contacts'}
+                    ]
+                });
+                console.log('changeNtfStatus user.contacts: ',user.contacts.find(itm => itm.username === userName).Contacts);
+                let userData = await user.reformatData();
+                if(!userData.contacts.includes(userName)) return cb("You are not in contact list of this user or did not authorized.",null);
+                let contact = user.contacts.find(itm => itm.username === userName);
+                console.log('changeNtfStatus contact: ',contact);
+                let status = contact.Contacts.enable
+
+                await Contacts.update({
+                    enable:!status
+                },{
+                    where:{
+                        userId:user._id,contactId:contact._id
+                    }
+                });
+                cb(null,await aggregateUserData(username))
+            } catch (err) {
+                console.log("chgUNtfStatus err: ",err);
                 cb(err,null)
             }
         });

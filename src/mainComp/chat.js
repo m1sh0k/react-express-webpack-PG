@@ -891,6 +891,18 @@ class Chat extends React.Component {
                     }else this.setState({rooms:data.rooms});
                 });
                 break;
+            case "chgUNtfStatus":
+                console.log("onContextMenuHandler chgUNtfStatus userName: ",roomName);//in is case roomName -> userName
+                this.socket.emit('chgUNtfStatus',roomName,(err,data)=>{
+                    //console.log("chgUNtfStatus cb err: ",err,", cb contacts: ",data);
+                    if(err) {
+                        this.setState({
+                            modalWindow:true,
+                            err:{message:err},
+                        })
+                    }else this.setState({contacts:data.contacts});
+                });
+                break;
             case "moveRoomOnTop":
                 //console.log("onContextMenuHandler moveRoomOnTop: ",roomName);
                 break;
@@ -1304,6 +1316,7 @@ class Chat extends React.Component {
                             itm={itm}
                             i={i}
                             contacts={this.state.contacts.map(itm => itm.name).filter(name => name !== itm.name)}
+                            userNRSStatus={itm.enable}
                             getUserLog={() => this.getLog("contacts", itm.name, null)}
                             inxHandler={() => this.inxHandler("contacts", i)}
                             messageBlockHandlerId={this.state.messageBlockHandlerId}
@@ -1317,6 +1330,7 @@ class Chat extends React.Component {
                                 key={i}
                                 itm={itm}
                                 contacts={this.state.contacts.map(itm => itm.name).filter(name => name !== itm.name)}
+                                userNRSStatus={itm.enable}
                                 i={this.getUsersIdx("contacts", itm.name)}
                                 getUserLog={() => this.getLog("contacts", itm.name, null)}
                                 inxHandler={() => this.inxHandler("contacts", i)}

@@ -55,6 +55,7 @@ class UserBtn extends React.Component {
             case "banRoomUser":
             case "unBanRoomUser":
             case "setRoomAdmin":
+            case "chgUNtfStatus":
                 this.props.onContextMenuHandler(res,username,this.state.onContextMenuUserName);
                 this.setState({onContextMenu:false});
                 break;

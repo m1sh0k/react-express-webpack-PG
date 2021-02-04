@@ -128,6 +128,7 @@ class OnContextMenu extends React.Component {
                         {this.props.authorizedStatus === false ?
                             <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("reqAuth")}}>Request authorization</li>:""
                         }
+                            <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("chgUNtfStatus")}}>{this.props.userNRSStatus ? "Disable Notifications" : "Enable Notifications"}</li>
                     </ul>
                 }
 

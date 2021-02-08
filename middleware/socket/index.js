@@ -342,9 +342,10 @@ module.exports = function (server) {
                 console.log("deleteUser name:" ,data);
                 let {err:errRG, user:userRG} = await User.userRFAL(username,data.name);//remove from contacts & blockedContact
                 if(errRG) return cb("Delete user filed. DB err: " + errRG,null);
+                console.log("deleteUser userRG:",userRG);
                 //update globalChatUsers[username] data
-                globalChatUsers[username].contacts = userRG.contacts;
-                globalChatUsers[username].blockedContacts = userRG.blockedContacts;
+                globalChatUsers[username].contacts = userRG.contacts.map(itm => itm.username);
+                globalChatUsers[username].blockedContacts = userRG.blockedContacts.map(itm => itm.username);
                 //
                 let {err,mes} = await Message.messageHandler({sig:setGetSig([username,data.name]),members:[username,data.name],message:{ author: username, text: "I deleted you from my contact list.", status: false, date: data.date}});
                 //let idx = mes._id;

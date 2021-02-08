@@ -136,12 +136,13 @@ User.userATC = async function (reqUser,contact) {//AddToContacts
                 {model: User,as:'blockedContacts'},
             ],
         });
-        console.log('AddToContacts user: ',user);
+        let userData = await user.reformatData();
         if(!user) return ({err:"No user name "+reqUser+" found.",user:null});
-        if(user.contacts.map(itm => itm.name).includes(contact)) return ({err:null,user:user});
+        if(userData.contacts.includes(contact)) return ({err:"Rejected, you always add this user to contats.",user:null});
         let newContact = await User.findOne({where:{username:contact}});
         if(!newContact) return ({err:"No user name "+contact+" found.",user:null});
-        user = await user.addContacts(newContact);
+        await user.addContact(newContact);
+        await user.reload();
         return ({err:null,user:user});
     } catch(err) {
         console.log('userATC err: ',err);
@@ -161,11 +162,13 @@ User.userATBC = async function (reqUser,contact) {//AddToBlockedContacts
                 {model: User,as:'blockedContacts'},
             ],
         });
+        let userData = await user.reformatData();
         if(!user) return ({err:"No user name "+reqUser+" found.",user:null});
-        if(user.blockedContacts.map(itm => itm.name).includes(contact)) return ({err:"You always add this user to Blocked contacts.",user:null});
+        if(userData.blockedContacts.includes(contact)) return ({err:"You always add this user to Blocked contacts.",user:null});
         let newContact = await User.findOne({where:{username:contact}});
         if(!newContact) return ({err:"No user name "+contact+" found.",user:null});
-        user = await user.addBlockedContacts(newContact);
+        await user.addBlockedContact(newContact);
+        await user.reload();
         return ({err:null,user:user});
     } catch(err) {
         console.log('userATBC err: ',err);
@@ -185,13 +188,14 @@ User.userMFBCTC = async function (reqUser,contact) {//MoveFromBlockedContactsToC
                 {model: User,as:'blockedContacts'},
             ]
         });
-        await user.reformatData();
-        if(!user) return ({err:"No user name "+reqUser+" found.",user:null});
-        if(user.contacts.includes(contact)) return ({err:"You always add this user to contacts.",user:null});
+        let userData = await user.reformatData();
+        if(!userData) return ({err:"No user name "+reqUser+" found.",user:null});
+        if(userData.contacts.includes(contact)) return ({err:"You always add this user to contacts.",user:null});
         let newContact = await User.findOne({where:{username:contact}});
         if(!newContact) return ({err:"No user name "+contact+" found.",user:null});
-        await user.removeBlockedContacts(newContact);
-        user = await user.addContacts(newContact);
+        await user.removeBlockedContact(newContact);
+        await user.addContact(newContact);
+        await user.reload();
         return {err:null,user:user};
     } catch(err) {
         console.log('userMFBCTC err: ',err);
@@ -211,13 +215,14 @@ User.userMFCTBC = async function (reqUser,contact) {//MoveFromContactsToBlockedC
                 {model: User,as:'blockedContacts'},
             ]
         });
-        await user.reformatData();
+        let userData = await user.reformatData();
         if(!user) return ({err:"No user name "+reqUser+" found.",user:null});
-        if(user.blockedContacts.includes(contact)) return {err:"You always moved contact.",user:null};
+        if(userData.blockedContacts.includes(contact)) return {err:"You always moved contact.",user:null};
         let newContact = await User.findOne({where:{username:contact}});
         if(!newContact) return ({err:"No user name "+contact+" found.",user:null});
-        await user.removeContacts(newContact);
-        user = await user.addBlockedContacts(newContact);
+        await user.removeContact(newContact);
+        await user.addBlockedContact(newContact);
+        await user.reload();
         return {err:null,user:user};
     } catch(err) {
         console.log('userMFCTBC err: ',err);
@@ -226,16 +231,30 @@ User.userMFCTBC = async function (reqUser,contact) {//MoveFromContactsToBlockedC
 };
 //
 User.userRFAL = async function (reqUser,contact) {//RemoveFromAllList
+    let Message = require('./index').Message;
     let user = {};
     console.log('userRFAL userReq: ',reqUser,",","moving contact: ",contact);
     try {
-        user = await User.findOne({where:{username:reqUser}});
-        let contactDell = await User.findOne({where:{username:contact}});
+        user = await User.findOne({where:{username:reqUser},
+            include:[
+                {model: User,as:'contacts'},
+                {model: User,as:'blockedContacts'},
+            ]});
+        let contactDell = await User.findOne({where:{username:contact},
+            include:[
+                {model: User,as:'contacts'},
+                {model: User,as:'blockedContacts'},
+            ]});
         if(!contactDell) return ({err:"No user name "+contactDell+" found.",user:null});
         if(!user) return ({err:"No user name "+reqUser+" found.",user:null});
-        await user.removeContacts(contactDell);
-        await user.removeBlockedContacts(contactDell);
+        await user.removeContact(contactDell);
+        await user.removeBlockedContact(contactDell);
         await user.reload();
+        await contactDell.reformatData();
+        // if(!contactDell.contacts.includes(user.username) && !contactDell.blockedContacts.includes(user.username)) {
+        //     //remove all messages from conversation
+        //     let mes = await Message.findAll({where:{sig:}})
+        // }
         return {err:null,user:user};
     } catch(err) {
         console.log('userRFAL err: ',err);

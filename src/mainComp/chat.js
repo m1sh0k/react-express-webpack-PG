@@ -72,6 +72,7 @@ class Chat extends React.Component {
 
             messagesStore: {
                 contacts:{},
+                blockedContacts:{},
                 rooms:{},
                 channels:{}
             },
@@ -148,7 +149,7 @@ class Chat extends React.Component {
 
             .on('messageForward', (mesArray,itmType,itmName)=>{
                 switch (itmType) {
-                    case "users":
+                    case "contacts":
                         mesArray.forEach(itm => this.printMessage(itm,"contacts", itmName));
                         this.msgCounter("contacts",itmName);
                         break;
@@ -166,17 +167,15 @@ class Chat extends React.Component {
             })
 
             .on('updateUserData',(userData)=>{
-                //console.log("updateUserData: ",userData);
+                console.log("updateUserData: ",userData);
                 if(userData.username !== this.state.user.username) return;
-                //let sortUsers = userData.contacts.sort((a,b)=> b.onLine - a.onLine);
-                //let sortBlockedUsers = userData.blockedContacts.sort((a,b)=> b.onLine - a.onLine);
                 this.setState({
                     user:userData,
                     contacts:userData.contacts,
                     blockedContacts:userData.blockedContacts,
                     rooms:userData.rooms,
                     channels:userData.channels
-                });
+                },()=> this.updateMessageStore(userData.username));
             })
             .on('updateMsgStatus',(itmType,itmName,idx,userName)=>{//userName for room || channel set status
                 if(!itmType || !itmName || !idx) return;
@@ -475,6 +474,7 @@ class Chat extends React.Component {
     };
     //pushing incoming msgs
     printMessage =(data,itmType,itmName)=> {
+        console.log("printMessage itmType: ",itmType,", itmName: ",itmName)
         let messagesStore = this.state.messagesStore;
         if(!messagesStore[itmType][itmName]) messagesStore[itmType][itmName] = [];
         messagesStore[itmType][itmName].push(data);
@@ -487,6 +487,7 @@ class Chat extends React.Component {
                 this.setState({playIncomingMes:true});
                 break;
             case "contacts":
+                if(!this.state["contacts"][this.getUsersIdx(itmType,itmName)].enable) return;
                 console.log("play incoming contacts mes sound enable")
                 this.setState({playIncomingMes:true});
                 break;
@@ -497,46 +498,6 @@ class Chat extends React.Component {
     };
 
     //User functional//
-    moveToBlackList =(name)=> {
-        this.socket.emit('moveToBlackList',name,(err,userData)=>{
-            //console.log("moveToBlackList callback err: ",err," ,userData: ",userData);
-            if(err) {
-                this.setState({
-                    modalWindow:true,
-                    err:{message:err},
-                    addMeHandler: false,
-                    confirmMessage:"",
-                    reqAddMeName:"",
-                })
-            } else {
-                this.setState({
-                    contacts:userData.contacts,
-                    blockedContacts:userData.blockedContacts,
-                })
-            }
-        })
-    };
-
-    deleteUser =(name)=> {
-        this.socket.emit('deleteUser',name,(err,userData)=>{
-            //console.log("deleteUser callback err: ",err," ,userData: ",userData);
-            if(err) {
-                this.setState({
-                    modalWindow:true,
-                    err:{message:err},
-                    addMeHandler: false,
-                    confirmMessage:"",
-                    reqAddMeName:"",
-                })
-            } else {
-                this.setState({
-                    contacts:userData.contacts,
-                    blockedContacts:userData.blockedContacts,
-                })
-            }
-        })
-    };
-
     searchUser = (data)=> {
         //console.log("searchUser: ",data);
         this.socket.emit('checkContact',data,(name)=>{
@@ -610,18 +571,20 @@ class Chat extends React.Component {
         })
     };
 
-    resAddMe =(name)=>{
+    resAddMe =(username)=>{
         //console.log("resAddMe: ",name);
         this.setState({
-            resAddMeHandler:true,
-            resAddMeAddMeName:name,
-            confirmMessage:"Allow user "+name+" to add you?"
-        })
+            changeStatusHandler:true,
+            confirmMessage:"Are you sure you want to allow a user "+username+"?",
+            changeStatusName:username,
+            changeStatusAct:"unBanUser",
+        });
     };
 
     addMeHandler = (confirmRes) => {
         //console.log('confirmRes: ',confirmRes);
         if(confirmRes){
+            let uN = this.state.reqAddMeName
             this.socket.emit('addMe', {name:this.state.reqAddMeName,date:Date.now()},(err,userData,msgData)=>{
                 //console.log("addMe callback err: ",err," ,userData: ",userData);
                 if(err) {
@@ -640,7 +603,7 @@ class Chat extends React.Component {
                         confirmMessage:"",
                         reqAddMeName:"",
                         foundContacts:[]
-                    },()=>this.printMessage(msgData,"contacts",this.state.reqAddMeName));
+                    },()=>this.printMessage(msgData,"contacts",uN));
                 }
                 this.refs["nameSearchInp"].value = "";
             })
@@ -653,46 +616,29 @@ class Chat extends React.Component {
         }
     };
 
-    resAddMeHandler =(confirmRes)=> {
-        //('resAddMeHandler: ',confirmRes);
-        if(confirmRes){
-            let date = Date.now();
-            let addUserName = this.state.resAddMeAddMeName;
-            this.socket.emit('unBanUser', {name:addUserName,date:date},(err,userData,msgData)=>{
-                //console.log("unBanUser callback err: ",err," ,userData: ",userData);
-                if(err) {
-                    this.setState({
-                        modalWindow:true,
-                        err:{message:err},
-                        resAddMeHandler:false,
-                        resAddMeAddMeName:"",
-                        confirmMessage:""
-                    })
-                }else {
-                    this.setState({
-                        contacts:userData.contacts,
-                        blockedContacts:userData.blockedContacts,
-                        resAddMeHandler:false,
-                        resAddMeAddMeName:"",
-                        confirmMessage:""
-                    });
-                    this.printMessage(msgData,"contacts",addUserName);
-                }
-            })
+    updateMessageStore =(userName)=>{
+        console.log("updateMessageStore uN: ",userName);
+        let messagesStore = this.state.messagesStore;
+        let buf;
+        if(messagesStore.contacts[userName] && !messagesStore.blockedContacts[userName]){
+            buf = messagesStore.contacts[userName];
+            messagesStore.blockedContacts[userName] = buf;
+            delete messagesStore.contacts[userName];
         }else{
-            this.setState({
-                resAddMeHandler:false,
-                resAddMeAddMeName:"",
-                confirmMessage:""
-            });
+            if(!messagesStore.contacts[userName] && messagesStore.blockedContacts[userName]){
+                buf = messagesStore.blockedContacts[userName];
+                messagesStore.contacts[userName] = buf;
+                delete messagesStore.blockedContacts[userName];
+            }else console.log("updateMessageStore err. Wrong state messagesStore.contacts or messagesStore.blockedContacts")
         }
-    };
+    }
 
     userStatusHandler =(confirmRes)=> {
-        //console.log('userStatusHandler: ',confirmRes,' ,this.state.changeStatusAct: ',this.state.changeStatusAct,', this.state.changeStatusName: ',this.state.changeStatusName);
+        console.log('userStatusHandler: ',confirmRes,' ,this.state.changeStatusAct: ',this.state.changeStatusAct,', this.state.changeStatusName: ',this.state.changeStatusName);
         if(confirmRes){
             this.socket.emit(this.state.changeStatusAct, {name:this.state.changeStatusName,date:Date.now()},(err,userData,msgData)=>{
-                //console.log("userStatusHandler callback err: ",err," , userData: ",userData," ,msgData: ",msgData);
+                console.log("userStatusHandler callback err: ",err," , userData: ",userData," ,msgData: ",msgData);
+                let usN = this.state.changeStatusName;
                 if(err) {
                     this.setState({
                         modalWindow:true,
@@ -703,7 +649,6 @@ class Chat extends React.Component {
                         confirmMessage:""
                     })
                 }else {
-                    if(msgData) this.printMessage(msgData,"contacts",this.state.changeStatusName);
                     this.setState({
                         contacts:userData.contacts,
                         blockedContacts:userData.blockedContacts,
@@ -711,7 +656,8 @@ class Chat extends React.Component {
                         changeStatusName:"",
                         changeStatusAct:"",
                         confirmMessage:""
-                    });
+                    },()=> this.updateMessageStore(usN));
+                    if(msgData) this.printMessage(msgData,"contacts",usN);
                 }
             })
         }else{
@@ -723,6 +669,7 @@ class Chat extends React.Component {
             });
         }
     };
+    //////////////////////
     //Right click handler
     onContextMenuHandler = async (res,username,roomName)=>{
         console.log("onContextMenuHandler res: ", res,' ,arrayBlockHandlerId: ',this.state.arrayBlockHandlerId);
@@ -929,24 +876,11 @@ class Chat extends React.Component {
                 break;
             case "unBanUser":
                 //console.log("onContextMenuHandler unBanUser");
-                this.socket.emit('unBanUser', {name:username,date:date},(err,userData,msgData)=>{
-                    //console.log("unBanUser callback err: ",err," ,userData: ",userData);
-                    if(err) {
-                        this.setState({
-                            modalWindow:true,
-                            err:{message:err},
-                            changeStatusHandler:false,
-                            changeStatusName:"",
-                            changeStatusAct:"",
-                            confirmMessage:""
-                        })
-                    }else {
-                        this.printMessage(msgData,"contacts",username);
-                        this.setState({
-                            contacts:userData.contacts,
-                            blockedContacts:userData.blockedContacts,
-                        });
-                    }
+                this.setState({
+                    changeStatusHandler:true,
+                    confirmMessage:"Are you sure you want to allow a user "+username+"?",
+                    changeStatusName:username,
+                    changeStatusAct:"unBanUser",
                 });
                 break;
             case "clearChatWindow":
@@ -994,6 +928,7 @@ class Chat extends React.Component {
                 console.log("onContextMenuHandler Sorry, we are out of " + res + ".");
         }
     };
+
     //Group functional//
     createRoom =(roomName)=>{
         //console.log("createRoom: ",roomName);
@@ -1350,7 +1285,7 @@ class Chat extends React.Component {
         ):"";
 
 
-        const blockedUsers = this.state.blockedContacts.length !== 0 ? <div>
+        const blockedContacts = this.state.blockedContacts.length !== 0 ? <div>
                 <div className="userList black">black list contacts</div>
                 {
                     this.state.blockedContacts.map((itm, i) =>
@@ -1494,10 +1429,6 @@ class Chat extends React.Component {
                     <Confirm confirmHandler={this.joinToChannelHandler} show={this.state.joinToChannelHandler}
                              message={this.state.confirmMessage}/>
                     : ""}
-                {this.state.resAddMeHandler ?
-                    <Confirm confirmHandler={this.resAddMeHandler} show={this.state.resAddMeHandler}
-                             message={this.state.confirmMessage}/>
-                    : ""}
                 {this.state.changeStatusHandler ?
                     <Confirm confirmHandler={this.userStatusHandler} show={this.state.changeStatusHandler}
                              message={this.state.confirmMessage}/>
@@ -1624,7 +1555,7 @@ class Chat extends React.Component {
                                                         return (
                                                             <div>
                                                                 {contacts}
-                                                                {blockedUsers}
+                                                                {blockedContacts}
                                                                 {rooms}
                                                                 {channels}
                                                             </div>

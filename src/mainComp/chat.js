@@ -72,7 +72,6 @@ class Chat extends React.Component {
 
             messagesStore: {
                 contacts:{},
-                blockedContacts:{},
                 rooms:{},
                 channels:{}
             },
@@ -175,7 +174,7 @@ class Chat extends React.Component {
                     blockedContacts:userData.blockedContacts,
                     rooms:userData.rooms,
                     channels:userData.channels
-                },()=> this.updateMessageStore(userData.username));
+                });
             })
             .on('updateMsgStatus',(itmType,itmName,idx,userName)=>{//userName for room || channel set status
                 if(!itmType || !itmName || !idx) return;
@@ -318,11 +317,11 @@ class Chat extends React.Component {
     getLog =(a,e,reqMesCountCb)=>{
         if(this.state.arrayBlockHandlerId === a && this.state.messageBlockHandlerId === this.getUsersIdx(a,e) && reqMesCountCb === null) return;
         let messagesStore = this.state.messagesStore;
-        if(!messagesStore[a][e]) messagesStore[a][e] = [];
-        if(messagesStore[a][e].length >= 15 && reqMesCountCb === null) return;
+        if(!messagesStore[a === "blockedContacts"?"contacts":a][e]) messagesStore[a === "blockedContacts"?"contacts":a][e] = [];
+        if(messagesStore[a === "blockedContacts"?"contacts":a][e].length >= 15 && reqMesCountCb === null) return;
         if(!reqMesCountCb) reqMesCountCb = 15;
         //console.log("getLog a,e: ",a,e);
-        if(messagesStore[a][e].length === this.state[a][this.getUsersIdx(a,e)].allMesCounter) return;
+        if(messagesStore[a === "blockedContacts"?"contacts":a][e].length === this.state[a][this.getUsersIdx(a,e)].allMesCounter) return;
         //console.log("getLog: ",a," ,",e," ,",reqMesCountCb);
         this.socket.emit(a === "rooms" ? 'getRoomLog' : a === "channels" ? 'getChannelLog' : 'getUserLog',e,reqMesCountCb,null,(err,arr)=>{
             //console.log("getUserLog arr: ",arr," ,err: ",err);
@@ -332,7 +331,7 @@ class Chat extends React.Component {
                     err:{message:err},
                 })
             }else {
-                messagesStore[a][e] = arr;
+                messagesStore[a === "blockedContacts"?"contacts":a][e] = arr;
                 this.setState({messagesStore},()=>this.scrollToBottom(this.refs.InpUl));
             }
         });
@@ -343,7 +342,7 @@ class Chat extends React.Component {
     };
     //filter subscribers then user type in search field or send req for search in DB
     setFiltered = (nameStr) => {
-        //console.log("setFiltered str: ",nameStr);
+        console.log("setFiltered str: ",nameStr);
         if(nameStr.length === 0) {
             //this.setState({filteredContacts: [],foundContacts: []});
             this.setState({searchInput:false});
@@ -385,7 +384,7 @@ class Chat extends React.Component {
         console.log("msgCounter i: ",i);
         let current = this.state[a][i];
         console.log("msgCounter current: ",current);
-        let currentUserMes = this.state.messagesStore[a][e];
+        let currentUserMes = this.state.messagesStore[a === "blockedContacts"?"contacts":a][e];
         if(!unreadFlag) current.allMesCounter = current.allMesCounter + 1;
         let unReadMes = currentUserMes.filter(itm => itm.author !== this.state.user.username &&
                             itm.recipients.some(itm => itm.username === this.state.user.username) &&
@@ -487,6 +486,7 @@ class Chat extends React.Component {
                 this.setState({playIncomingMes:true});
                 break;
             case "contacts":
+                if(this.state["contacts"][this.getUsersIdx(itmType,itmName)] === undefined) return;
                 if(!this.state["contacts"][this.getUsersIdx(itmType,itmName)].enable) return;
                 console.log("play incoming contacts mes sound enable")
                 this.setState({playIncomingMes:true});
@@ -548,7 +548,7 @@ class Chat extends React.Component {
                         err:{message:err},
                     })
                 }else {
-                    messagesStore[a][itmName] = arr;
+                    messagesStore[a === "blockedContacts"?"contacts":a][itmName] = arr;
                     this.setState({messagesStore}, ()=> this.changeScrollPos(mesId))
                 }
             });
@@ -594,7 +594,8 @@ class Chat extends React.Component {
                         addMeHandler: false,
                         confirmMessage:"",
                         reqAddMeName:"",
-                        foundContacts:[]
+                        foundContacts:[],
+                        searchInput:false
                     })
                 }else {
                     this.setState({
@@ -602,7 +603,8 @@ class Chat extends React.Component {
                         addMeHandler: false,
                         confirmMessage:"",
                         reqAddMeName:"",
-                        foundContacts:[]
+                        foundContacts:[],
+                        searchInput:false
                     },()=>this.printMessage(msgData,"contacts",uN));
                 }
                 this.refs["nameSearchInp"].value = "";
@@ -612,26 +614,11 @@ class Chat extends React.Component {
                 addMeHandler: false,
                 confirmMessage:"",
                 reqAddMeName:"",
+                searchInput:false
             });
         }
     };
 
-    updateMessageStore =(userName)=>{
-        console.log("updateMessageStore uN: ",userName);
-        let messagesStore = this.state.messagesStore;
-        let buf;
-        if(messagesStore.contacts[userName] && !messagesStore.blockedContacts[userName]){
-            buf = messagesStore.contacts[userName];
-            messagesStore.blockedContacts[userName] = buf;
-            delete messagesStore.contacts[userName];
-        }else{
-            if(!messagesStore.contacts[userName] && messagesStore.blockedContacts[userName]){
-                buf = messagesStore.blockedContacts[userName];
-                messagesStore.contacts[userName] = buf;
-                delete messagesStore.blockedContacts[userName];
-            }else console.log("updateMessageStore err. Wrong state messagesStore.contacts or messagesStore.blockedContacts")
-        }
-    }
 
     userStatusHandler =(confirmRes)=> {
         console.log('userStatusHandler: ',confirmRes,' ,this.state.changeStatusAct: ',this.state.changeStatusAct,', this.state.changeStatusName: ',this.state.changeStatusName);
@@ -656,7 +643,7 @@ class Chat extends React.Component {
                         changeStatusName:"",
                         changeStatusAct:"",
                         confirmMessage:""
-                    },()=> this.updateMessageStore(usN));
+                    });
                     if(msgData) this.printMessage(msgData,"contacts",usN);
                 }
             })
@@ -896,7 +883,7 @@ class Chat extends React.Component {
                     },()=>this.hideShow("userPropsWindow"));
                 }
                 if(this.getUsersIdx("blockedContacts",username) >= 0) {
-                    this.getLog("blockedContacts",username,null);
+                    this.getLog("contacts",username,null);
                     return this.setState({
                         messageBlockHandlerId:this.getUsersIdx("blockedContacts",username),
                         arrayBlockHandlerId:"blockedContacts"
@@ -1063,8 +1050,8 @@ class Chat extends React.Component {
     onScrollHandler =(e,name,array,itm)=> {
         //console.log("scrollHandler: ",e.target);
         if(e.target.scrollTop === 0) {
-            //console.log("scrollHandler on top: ",e," ,",name," ,",array," ,",itm);
-            let msgCount = this.state.messagesStore[array][name].length;
+            console.log("scrollHandler on top: ",e," ,",name," ,",array," ,",itm);
+            let msgCount = this.state.messagesStore.contacts[name].length;
             this.setState({scrollTopMax: e.target.scrollTopMax},()=>this.getLog(array,name,msgCount+10));
         }
     };
@@ -1080,7 +1067,7 @@ class Chat extends React.Component {
                 })
             } else {
                 let messagesStore = this.state.messagesStore;
-                messagesStore[a][itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === this.state.user.username).status = true;
+                messagesStore[a === "blockedContacts"?"contacts":a][itmName].find(itm => itm._id === idx).recipients.find(itm => itm.username === this.state.user.username).status = true;
                 this.setState({messagesStore},()=> {
                     //console.log("setAsRead DONE!");
                     this.msgCounter(this.state.arrayBlockHandlerId,itmName,true)})
@@ -1593,8 +1580,9 @@ class Chat extends React.Component {
                             let eUser = {};
                             let eStore = {};
                             if (a !== undefined && e !== undefined) {eUser = this.state[a][e]}
+
                             else eUser = undefined;
-                            if(eUser !== undefined && eUser.name !== undefined) {eStore = this.state.messagesStore[a][eUser.name]}
+                            if(eUser !== undefined && eUser.name !== undefined) {eStore = this.state.messagesStore[a === "blockedContacts"?"contacts":a][eUser.name]}
                             else eStore = undefined;
                             //console.log("eStore: ",eStore);
 

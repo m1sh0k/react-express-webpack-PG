@@ -136,11 +136,29 @@ User.userATC = async function (reqUser,contact) {//AddToContacts
                 {model: User,as:'blockedContacts'},
             ],
         });
-        let userData = await user.reformatData();
         if(!user) return ({err:"No user name "+reqUser+" found.",user:null});
-        if(userData.contacts.includes(contact)) return ({err:"Rejected, you always add this user to contats.",user:null});
-        let newContact = await User.findOne({where:{username:contact}});
+        let userData = await user.reformatData();
+
+        let newContact = await User.findOne({where:{username:contact},
+            include: [
+                {model: User,as:'contacts'},
+                {model: User,as:'blockedContacts'},
+            ],});
         if(!newContact) return ({err:"No user name "+contact+" found.",user:null});
+        let newContactData = await newContact.reformatData();
+
+        if(userData.contacts.includes(contact)) {
+            if(!newContactData.contacts.includes(reqUser) && !newContactData.blockedContacts.includes(reqUser)){
+                //restore lost authorization
+                await newContact.addBlockedContact(user);
+                await user.reload();
+            }
+            return ({err:null,user:user});
+        }
+        if(userData.blockedContacts.includes(contact)) return ({err:null,user:user});
+
+        if(newContactData.contacts.includes(reqUser)) return ({err:"Rejected, "+contact+" always add you to contacts.",user:null});
+        if(newContactData.blockedContacts.includes(reqUser)) return ({err:"Rejected, "+contact+" always add you to blocked contacts.",user:null});
         await user.addContact(newContact);
         await user.reload();
         return ({err:null,user:user});
@@ -162,9 +180,9 @@ User.userATBC = async function (reqUser,contact) {//AddToBlockedContacts
                 {model: User,as:'blockedContacts'},
             ],
         });
-        let userData = await user.reformatData();
         if(!user) return ({err:"No user name "+reqUser+" found.",user:null});
-        if(userData.blockedContacts.includes(contact)) return ({err:"You always add this user to Blocked contacts.",user:null});
+        let userData = await user.reformatData();
+        if(userData.blockedContacts.includes(contact)) return ({err:null,user:user});
         let newContact = await User.findOne({where:{username:contact}});
         if(!newContact) return ({err:"No user name "+contact+" found.",user:null});
         await user.addBlockedContact(newContact);

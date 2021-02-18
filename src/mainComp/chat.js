@@ -488,7 +488,7 @@ class Chat extends React.Component {
             case "contacts":
                 if(this.state["contacts"][this.getUsersIdx(itmType,itmName)] === undefined) return;
                 if(!this.state["contacts"][this.getUsersIdx(itmType,itmName)].enable) return;
-                console.log("play incoming contacts mes sound enable")
+                console.log("play incoming contacts mes sound enable");
                 this.setState({playIncomingMes:true});
                 break;
             default:
@@ -496,6 +496,65 @@ class Chat extends React.Component {
 
         }
     };
+    //change itm position in array
+    array_move =(arr, old_index, new_index)=> {
+        if (new_index >= arr.length) {
+            var k = new_index - arr.length + 1;
+            while (k--) {
+                arr.push(undefined);
+            }
+        }
+        arr.splice(new_index, 0, arr.splice(old_index, 1)[0]);
+        return arr; // for testing
+    };
+    //
+    changeItmPosArray =(itmType,itmName,action)=>{
+        console.log("changeItmPosArray itmType: ",itmType,", itmName: ",itmName,", action: ",action);
+        if(!this.state[itmType]) return;
+        let itmArray = this.state[itmType];
+        let itmIdx = itmArray.map(itm => itm.name).indexOf(itmName);
+        console.log("changeItmPosArray itmIdx: ",itmIdx);
+        if(itmIdx < 0) return;
+
+        let modifiedArray = [];
+        let newIndex;
+        switch (action){
+            case 'upItmArray':
+                newIndex = itmIdx-1
+                modifiedArray = this.array_move(itmArray,itmIdx,newIndex);
+                break;
+            case 'downItmArray':
+                newIndex = itmIdx+1
+                modifiedArray = this.array_move(itmArray,itmIdx,newIndex);
+                break;
+            case 'upTopItmArray':
+                if(itmIdx === 0) return;
+                newIndex = 0
+                modifiedArray = this.array_move(itmArray,itmIdx,newIndex);
+                break;
+            case 'downBotItmArray':
+                if(itmIdx === itmArray.length-1) return;
+                newIndex = itmArray.length-1
+                modifiedArray = this.array_move(itmArray,itmIdx,newIndex);
+                break;
+            default:
+                console.log("changeItmPosArray Sorry, we are out of " + action + ".");
+        }
+        modifiedArray.forEach((itm,i) => itm.sortId = i);
+        modifiedArray.sort((a,b)=> a.sortId > b.sortId)
+        console.log("changeItmPosArray modifiedArray: ",modifiedArray);
+        this.setState({[itmType]:modifiedArray});
+
+        this.socket.emit('changeItmPosArray', itmType,modifiedArray, (err) => {
+            if (err) {
+                console.log("changeItmPosArray err: ", err);
+                this.setState({
+                    modalWindow: true,
+                    err: {message: err},
+                })
+            } //else this.setState({[itmType]:modifiedArray});
+        });
+    }
 
     //User functional//
     searchUser = (data)=> {
@@ -900,7 +959,7 @@ class Chat extends React.Component {
             case "leaveChannel":
                 console.log("onContextMenuHandler leaveChannel channelName: ",roomName);
                 this.socket.emit('leaveChannel',roomName,date,(err,data)=>{//in is case roomName -> channelName
-                    console.log("leaveChannel cb err: ",err,", cb channel: ",data);
+                    console.log("leaveChannel cb err: ",err);
                     if(err) {
                         this.setState({
                             modalWindow:true,
@@ -1238,13 +1297,16 @@ class Chat extends React.Component {
                             itm={itm}
                             i={i}
                             contacts={this.state.contacts.map(itm => itm.name).filter(name => name !== itm.name)}
+                            changeItmPosArray={this.changeItmPosArray}
                             userNRSStatus={itm.enable}
                             getUserLog={() => this.getLog("contacts", itm.name, null)}
                             inxHandler={() => this.inxHandler("contacts", i)}
                             messageBlockHandlerId={this.state.messageBlockHandlerId}
                             onContextMenuHandler={this.onContextMenuHandler}
+                            contactList={true}
                             banList={false}
                             roomList={false}
+                            channelList={false}
                         />)
                 }
             </div> : "";
@@ -1258,8 +1320,10 @@ class Chat extends React.Component {
                                 inxHandler={() => this.inxHandler("contacts", i)}
                                 messageBlockHandlerId={this.state.messageBlockHandlerId}
                                 onContextMenuHandler={this.onContextMenuHandler}
+                                contactList={true}
                                 banList={false}
                                 roomList={false}
+                                channelList={false}
                             />);
         const foundContacts = this.state.foundContacts.length !== 0 ?this.state.foundContacts.map((name, i) => <UserBtn
                 key={i}
@@ -1280,12 +1344,15 @@ class Chat extends React.Component {
                             key={i}
                             itm={itm}
                             i={i}
+                            changeItmPosArray={this.changeItmPosArray}
                             getUserLog={() => this.getLog("blockedContacts", itm.name, null)}
                             inxHandler={() => this.inxHandler("blockedContacts", i)}
                             messageBlockHandlerId={this.state.messageBlockHandlerId}
                             onContextMenuHandler={this.onContextMenuHandler}
+                            contactList={false}
                             banList={true}
                             roomList={false}
+                            channelList={false}
                         />)
                 }
             </div>
@@ -1299,15 +1366,18 @@ class Chat extends React.Component {
                             name={itm.name}
                             itm={itm}
                             i={i}
+                            changeItmPosArray={this.changeItmPosArray}
                             getUserLog={() => this.getLog("rooms", itm.name, null)}
                             inxHandler={() => this.inxHandler("rooms", i)}
                             messageBlockHandlerId={this.state.messageBlockHandlerId}
                             onContextMenuHandler={this.onContextMenuHandler}
-                            banList={false}
-                            roomList={true}
                             userList={this.state.contacts.map(itm => itm.name)}
                             username={this.state.user.username}
                             userNRSStatus={itm.members.some(itm => itm.username === this.state.user.username) ? itm.members.find(itm => itm.username === this.state.user.username).enable : ""}//user Room notification status
+                            contactList={false}
+                            banList={false}
+                            roomList={true}
+                            channelList={false}
                         />)
                 }
             </div>
@@ -1321,12 +1391,14 @@ class Chat extends React.Component {
                             inxHandler={() => this.inxHandler("rooms", i)}
                             messageBlockHandlerId={this.state.messageBlockHandlerId}
                             onContextMenuHandler={this.onContextMenuHandler}
-                            banList={false}
-                            roomList={true}
                             userList={this.state.contacts.map(itm => itm.name)}
                             username={this.state.user.username}
                             userNRSStatus={itm.members.some(itm => itm.username === this.state.user.username) ? itm.members.find(itm => itm.username === this.state.user.username).enable : ""}//user Room notification status
-                        />)
+                            contactList={false}
+                            banList={false}
+                            roomList={true}
+                            channelList={false}
+            />)
         const foundRooms = this.state.foundRooms.length !== 0 ? this.state.foundRooms.map((name, i) => <UserBtn
                 key={i}
                 i={i}
@@ -1348,15 +1420,18 @@ class Chat extends React.Component {
                             name={itm.name}
                             itm={itm}
                             i={i}
+                            changeItmPosArray={this.changeItmPosArray}
                             getUserLog={() => this.getLog("channels", itm.name, null)}
                             inxHandler={() => this.inxHandler("channels", i)}
                             messageBlockHandlerId={this.state.messageBlockHandlerId}
                             onContextMenuHandler={this.onContextMenuHandler}
-                            banList={false}
-                            channelList={true}
                             userList={this.state.contacts.map(itm => itm.name)}
                             username={this.state.user.username}
                             userNRSStatus={itm.members.some(itm => itm.username === this.state.user.username) ? itm.members.find(itm => itm.username === this.state.user.username).enable : ""}//user Room notification status
+                            contactList={false}
+                            banList={false}
+                            roomList={false}
+                            channelList={true}
                         />)
                 }
             </div>
@@ -1371,11 +1446,13 @@ class Chat extends React.Component {
                             inxHandler={() => this.inxHandler("channels", i)}
                             messageBlockHandlerId={this.state.messageBlockHandlerId}
                             onContextMenuHandler={this.onContextMenuHandler}
-                            banList={false}
-                            channelList={true}
                             userList={this.state.contacts.map(itm => itm.name)}
                             username={this.state.user.username}
                             userNRSStatus={itm.members.some(itm => itm.username === this.state.user.username) ? itm.members.find(itm => itm.username === this.state.user.username).enable : ""}//user Room notification status
+                            contactList={false}
+                            banList={false}
+                            roomList={false}
+                            channelList={true}
                         />)
         const foundChannels = this.state.foundChannels.length !== 0 ? this.state.foundChannels.map((name, i) => <UserBtn
                 key={i}

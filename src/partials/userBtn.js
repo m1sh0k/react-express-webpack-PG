@@ -1,11 +1,14 @@
 import React from 'react';
 import OnContextMenu from './onContextMenuWindow.js'
+import moveArrow from './../../public/img/move-arrow.png'
 let contentMenuStyle = {
     display: location ? 'block' : 'none',
     position: 'absolute',
     left: location ? location.x : 0,
     top: location ? location.y : 0
 };
+
+
 class UserBtn extends React.Component {
 
     constructor(props){
@@ -15,7 +18,8 @@ class UserBtn extends React.Component {
             onContextMenuUserName:"",
             authorizedStatus:undefined,
             banStatus:undefined,
-            contextMenuLocation: contentMenuStyle
+            contextMenuLocation: contentMenuStyle,
+            itmType: this.props.contactList ? 'contacts' : this.props.banList ? 'blockedContacts' : this.props.roomList ? 'rooms' : this.props.channelList ? 'channels' : undefined,
         }
     }
 
@@ -98,7 +102,8 @@ class UserBtn extends React.Component {
                  }
                  onMouseLeave={this.rightClickMenuOnHide}
                  type="button"
-                 className={`btn user ${this.props.messageBlockHandlerId === i ?"clicked ":""}`}>
+                 className={`btn user ${this.props.messageBlockHandlerId === i ?"clicked ":""}`}
+            >
                 {this.props.roomList ? <div className="user-icon"/> :""}
                 {this.props.channelList ? <div className="channel-icon"/> :""}
                 {itm ?
@@ -143,6 +148,24 @@ class UserBtn extends React.Component {
                         userNRSStatus={this.props.userNRSStatus}
                     />
                     :''}
+                {
+                    this.state.itmType !== undefined ?
+                        <div className='move-item'>
+                            <div className='move-up move-btn'
+                                 onClick={()=>this.props.changeItmPosArray(this.state.itmType,itm.name,'upItmArray')}
+                                 onDoubleClick={()=>this.props.changeItmPosArray(this.state.itmType,itm.name,'upTopItmArray')}
+                            >
+                                <img src={moveArrow} alt="move-up"/>
+                            </div>
+                            <div className='move-down move-btn'
+                                 onClick={()=>this.props.changeItmPosArray(this.state.itmType,itm.name,'downItmArray')}
+                                 onDoubleClick={()=>this.props.changeItmPosArray(this.state.itmType,itm.name,'downBotItmArray')}
+                            >
+                                <img src={moveArrow} alt="move-down"/>
+                            </div>
+                        </div> : ""
+                }
+
             </div>
         )
     }

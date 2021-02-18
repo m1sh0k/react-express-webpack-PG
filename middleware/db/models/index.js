@@ -60,6 +60,11 @@ const Contacts = sequelize.define('Contacts', {
         allowNull: false,
         defaultValue:true,
     },
+    sortId:{//user No in array of contacts
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue:0,
+    }
 }, { timestamps: false,tableName: 'Contacts' });
 Contacts.sync();
 //
@@ -72,6 +77,11 @@ const BlockedContacts = sequelize.define('BlockedContacts', {
         type: Sequelize.INTEGER,
         allowNull: false,
     },
+    sortId:{//user No in array of contacts
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue:0,
+    }
 }, { timestamps: false,tableName: 'BlockedContacts' });
 BlockedContacts.sync();
 //
@@ -495,6 +505,11 @@ const UserRoom = sequelize.define('UserRoom', {
         allowNull: false,
         defaultValue:false,
     },
+    sortId:{//user No in array of contacts
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue:0,
+    },
 }, { timestamps: false,tableName: 'UserRoom' });
 UserRoom.sync();
 //
@@ -822,6 +837,11 @@ const ChannelUser = sequelize.define('ChannelUser', {
         allowNull: false,
         defaultValue:false,
     },
+    sortId:{//user No in array of contacts
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue:0,
+    },
 
 }, { timestamps: false,tableName: 'channelUser' });
 ChannelUser.sync();
@@ -998,6 +1018,7 @@ Channel.closeChannel = async function(channelName,creatorName) {
 
 module.exports.User = User;
 module.exports.Contacts = Contacts;
+module.exports.BlockedContacts = BlockedContacts;
 module.exports.Message = Message;
 module.exports.Room = Room;
 module.exports.MessageData = MessageData;

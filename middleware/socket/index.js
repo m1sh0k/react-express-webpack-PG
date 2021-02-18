@@ -5,6 +5,7 @@ var HttpError = require('./../error/index').HttpError;
 var DevError = require('./../error/index').DevError;
 var User = require('../db/models/index').User;
 var Contacts = require('../db/models/index').Contacts;
+var BlockedContacts = require('../db/models/index').BlockedContacts;
 var Message = require('../db/models/index').Message;
 var Room = require('../db/models/index').Room;
 var Channel = require('../db/models/index').Channel;
@@ -112,14 +113,26 @@ async function aggregateUserData(username) {
                 ],
             });
             let nameUserDB =  await data.reformatData();
-            let ntfSt = await Contacts.findOne({where:{userId:userData._id, contactId:nameUserDB._id}});
-            console.log("aggDataRooms ntfSt: ",ntfSt);
+            let contData = await Contacts.findOne({where:{userId:userData._id, contactId:nameUserDB._id}});
+            console.log("aggDataRooms contData: ",contData);
             let banned = nameUserDB.blockedContacts.includes(username);
             let authorized =  !(!nameUserDB.contacts.includes(username) && !nameUserDB.blockedContacts.includes(username));
             let {err,mes} = await Message.messageHandler({sig:setGetSig([username,name])});
 
             let col = mes.filter(itm => itm.author !== username && itm.recipients[0].status === false).length;
-            return contacts[i] = {name:name,  msgCounter :col, allMesCounter: mes.length, typing:false, onLine:status, banned:banned, authorized:authorized, created_at:nameUserDB.createdAt, userId:nameUserDB._id,enable:ntfSt.enable}
+            return contacts[i] = {
+                name:name,
+                msgCounter :col,
+                allMesCounter: mes.length,
+                typing:false,
+                onLine:status,
+                banned:banned,
+                authorized:authorized,
+                created_at:nameUserDB.createdAt,
+                userId:nameUserDB._id,
+                enable:contData.enable,
+                sortId:contData.sortId
+            }
         });
         let bL = blockedContacts.map(async (name,i) =>{
             let status = !!globalChatUsers[name];
@@ -135,7 +148,17 @@ async function aggregateUserData(username) {
             let authorized =  !(!nameUserDB.contacts.includes(username) && !nameUserDB.blockedContacts.includes(username));
             let {err,mes} = await Message.messageHandler({sig:setGetSig([username,name])});
             let col = mes.filter(itm => itm.author !== username && itm.recipients[0].status === false).length;
-            return blockedContacts[i] = {name:name, msgCounter :col, allMesCounter: mes.length,typing:false, onLine:status, banned:banned, authorized:authorized, created_at:nameUserDB.createdAt, userId:nameUserDB._id}
+            let bContData = await BlockedContacts.findOne({where:{userId:userData._id, blockedContactId:nameUserDB._id}});
+            return blockedContacts[i] = {
+                name:name, msgCounter :col,
+                allMesCounter: mes.length,
+                typing:false, onLine:status,
+                banned:banned,
+                authorized:authorized,
+                created_at:nameUserDB.createdAt,
+                userId:nameUserDB._id,
+                sortId:bContData.sortId
+            }
         });
         let rL = rooms.map(async (name,i) =>{
             let data = await Room.findOne({
@@ -148,8 +171,18 @@ async function aggregateUserData(username) {
             let room = await data.reformatData();
             let {err,mes} = await Message.messageHandler({sig:name});
             let mesFltr = mes.filter(itm => itm.author !== username && itm.recipients.some(itm => itm.username === username) && !itm.recipients.find(itm => itm.username === username).status);
+            let roomData = await UserRoom.findOne({where:{userId:userData._id, roomId:room._id}});
             //console.log('aggDataRooms mesFltr: ',mesFltr.length);
-            return rooms[i] = {name:name, msgCounter:mesFltr.length, allMesCounter:mes.length, members:room.members, blockedMembers:room.blockedMembers, created_at:room.createdAt, groupId:room._id}
+            return rooms[i] = {
+                name:name,
+                msgCounter:mesFltr.length,
+                allMesCounter:mes.length,
+                members:room.members,
+                blockedMembers:room.blockedMembers,
+                created_at:room.createdAt,
+                groupId:room._id,
+                sortId:roomData.sortId
+            }
         });
         let cL = channels.map(async (name,i) =>{
             let data = await Channel.findOne({
@@ -161,13 +194,26 @@ async function aggregateUserData(username) {
             let channel = await data.reformatData();
             let {err,mes} = await Message.messageHandler({sig:name});
             let mesFltr = mes.filter(itm => itm.author !== username && itm.recipients.some(itm => itm.username === username) && !itm.recipients.find(itm => itm.username === username).status);
+            let channelData = await ChannelUser.findOne({where:{userId:userData._id, channelId:channel._id}});
             console.log('aggDataRooms mesFltr: ',mesFltr.length);
-            return channels[i] = {name:name, msgCounter:mesFltr.length, allMesCounter:mes.length, members:channel.members, created_at:channel.createdAt, channelId:channel._id}
+            return channels[i] = {
+                name:name,
+                msgCounter:mesFltr.length,
+                allMesCounter:mes.length,
+                members:channel.members,
+                created_at:channel.createdAt,
+                channelId:channel._id,
+                sortId:channelData.sortId
+            }
         });
         userData.contacts = await Promise.all(wL);
+        userData.contacts.sort((a,b)=> a.sortId > b.sortId);
         userData.blockedContacts = await Promise.all(bL);
+        userData.blockedContacts.sort((a,b)=> a.sortId > b.sortId);
         userData.rooms = await Promise.all(rL);
+        userData.rooms.sort((a,b)=> a.sortId > b.sortId);
         userData.channels = await Promise.all(cL);
+        userData.channels.sort((a,b)=> a.sortId > b.sortId);
         //console.log("aggregateUserData: ",username,": ",userData);
         return userData;
     } catch (err) {
@@ -440,6 +486,70 @@ module.exports = function (server) {
             } catch (err) {
                 console.log("findContacts err:",err);
                 return cb(err,null)
+            }
+        });
+        //change items position in user,group or channel lists
+        socket.on('changeItmPosArray', async function (itmType,modifiedArray,cb) {
+            try {
+                console.log('changeItmPosArray itmType: ', itmType, ', modifiedArray: ', modifiedArray);
+                let usId = globalChatUsers[username]._id;
+                console.log('changeItmPosArray usId: ', usId);
+                switch (itmType) {
+                    case 'contacts':
+                        for (let itm of modifiedArray) {
+                            await Contacts.update({
+                                sortId:itm.sortId
+                            },{
+                                where:{
+                                    userId: usId,
+                                    contactId: itm.userId
+                                }
+                            });
+                        }
+                        break;
+                    case 'blockedContacts':
+                        for (let itm of modifiedArray) {
+                            await BlockedContacts.update({
+                                sortId:itm.sortId
+                            },{
+                                where:{
+                                    userId: usId,
+                                    contactId: itm.userId
+                                }
+                            });
+                        }
+                        break;
+                    case 'rooms':
+                        for(let itm of modifiedArray){
+                            await UserRoom.update({
+                                sortId:itm.sortId
+                            },{
+                                where:{
+                                    roomId:itm.groupId,
+                                    userId:usId
+                                }
+                            });
+                        }
+                        break;
+                    case 'channels':
+                        for(let itm of modifiedArray){
+                            await ChannelUser.update({
+                                sortId:itm.sortId
+                            },{
+                                where:{
+                                    channelId:itm.channelId,
+                                    userId:usId
+                                }
+                            });
+                        }
+                        break;
+                    default:
+                        console.log("changeItmPosArray sound Sorry, we are out of itmType: " + itmType + ".");
+                }
+                return cb(null);
+            } catch (err) {
+                console.log("changeItmPosArray err:",err);
+                return cb(err)
             }
         });
         //Check contact

@@ -719,7 +719,7 @@ class Chat extends React.Component {
     //Right click handler
     onContextMenuHandler = async (res,username,roomName)=>{
         console.log("onContextMenuHandler res: ", res,' ,arrayBlockHandlerId: ',this.state.arrayBlockHandlerId);
-
+        let messagesStore = this.state.messagesStore;
         let date = Date.now();
         switch (res) {
             case "shareLocation":
@@ -896,12 +896,7 @@ class Chat extends React.Component {
                     }else this.setState({contacts:data.contacts});
                 });
                 break;
-            case "moveRoomOnTop":
-                //console.log("onContextMenuHandler moveRoomOnTop: ",roomName);
-                break;
-            case "clearRoomWindow":
-                //console.log("onContextMenuHandler clearRoomWindow");
-                break;
+
             case "deleteUser":
                 //console.log("onContextMenuHandler deleteUser");
                 this.setState({
@@ -930,7 +925,19 @@ class Chat extends React.Component {
                 });
                 break;
             case "clearChatWindow":
-                //console.log("onContextMenuHandler clearChatWindow");
+                console.log("onContextMenuHandler clearChatWindow");
+                messagesStore.contacts[username] = [];
+                this.setState({messagesStore},()=>console.log("onContextMenuHandler clearChatWindow messageStore...[username]: ",this.state.messagesStore.contacts[username]));
+                break;
+            case "clearRoomWindow":
+                console.log("onContextMenuHandler clearRoomWindow");
+                messagesStore.rooms[roomName] = [];
+                this.setState({messagesStore});
+                break;
+            case "clearChannelWindow":
+                console.log("onContextMenuHandler clearRoomWindow");
+                messagesStore.channels[roomName] = [];//roomName in this case it is channelName
+                this.setState({messagesStore});
                 break;
             case "viewUserData":
                 //console.log("onContextMenuHandler viewUserData: ",username);
@@ -948,9 +955,6 @@ class Chat extends React.Component {
                         arrayBlockHandlerId:"blockedContacts"
                     },()=>this.hideShow("userPropsWindow"));
                 }
-                break;
-            case "moveOnTop":
-                console.log("onContextMenuHandler moveOnTop");
                 break;
             case "reqAuth":
                 //console.log("onContextMenuHandler reqAuth");
@@ -1107,10 +1111,11 @@ class Chat extends React.Component {
     };
     //scrollHandler emit load new part of history log
     onScrollHandler =(e,name,array,itm)=> {
-        //console.log("scrollHandler: ",e.target);
-        if(e.target.scrollTop === 0) {
+        //console.log("scrollHandler scrollTop: ",e.target.scrollTop);
+        //console.log("scrollHandler scrollTopMax: ",e.target.scrollTopMax);
+        if(e.target.scrollTop === 0 && e.target.scrollTopMax !== 0) {
             console.log("scrollHandler on top: ",e," ,",name," ,",array," ,",itm);
-            let msgCount = this.state.messagesStore.contacts[name].length;
+            let msgCount = this.state.messagesStore[array][name].length;
             this.setState({scrollTopMax: e.target.scrollTopMax},()=>this.getLog(array,name,msgCount+10));
         }
     };

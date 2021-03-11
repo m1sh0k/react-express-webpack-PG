@@ -935,7 +935,7 @@ class Chat extends React.Component {
                 this.setState({messagesStore});
                 break;
             case "clearChannelWindow":
-                console.log("onContextMenuHandler clearRoomWindow");
+                console.log("onContextMenuHandler clearChannelWindow channelName: ",roomName);
                 messagesStore.channels[roomName] = [];//roomName in this case it is channelName
                 this.setState({messagesStore});
                 break;

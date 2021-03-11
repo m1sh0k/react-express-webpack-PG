@@ -60,6 +60,7 @@ class OnContextMenu extends React.Component {
                 </ul>
             )
         };
+        console.log("OnContextMenu props: ",this.props);
         return (
 
             <div>
@@ -72,7 +73,7 @@ class OnContextMenu extends React.Component {
                         </li>
 
                         {
-                            this.props.userRoomList ?
+                            this.props.userRoomList && this.props.curentUser.admin ?
                                 <div>
                                     <li className='dropDownBtn invite' onMouseEnter={(e)=>{e.preventDefault();e.stopPropagation();this.showHideList("onEnterUserRoomList")}} onMouseLeave={()=>this.showHideList("onEnterUserRoomList")} >Ban user
                                         <OnEnterUserRoomList action="banRoomUser"/>
@@ -83,7 +84,7 @@ class OnContextMenu extends React.Component {
                                 </div> : ''
                         }
                         {
-                            this.props.userBanRoomList.length !== 0 ?
+                            this.props.userBanRoomList.length !== 0 && this.props.curentUser.admin ?
                                 <li className='dropDownBtn invite' onMouseEnter={(e)=>{e.preventDefault();e.stopPropagation();this.showHideList("onEnterBanUserRoomList")}} onMouseLeave={()=>this.showHideList("onEnterBanUserRoomList")} >Unban user
                                     <OnEnterBanUserRoomList/>
                                 </li> : ''
@@ -91,7 +92,9 @@ class OnContextMenu extends React.Component {
 
                         <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("viewRoomData")}}>View group data</li>
                         <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("clearRoomWindow")}}>Clear group window</li>
-                        <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("leaveRoom")}}>Leave group</li>
+                        {!this.props.curentUser.creator ?
+                            <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("leaveRoom")}}>Leave group</li>:""
+                        }
                         <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("chgRNtfStatus")}}>{this.props.userNRSStatus ? "Disable Notifications" : "Enable Notifications"}</li>
                     </ul>
                 : this.props.channelList ?
@@ -103,7 +106,12 @@ class OnContextMenu extends React.Component {
                             </li>
                             <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("viewChannelData")}}>View channel data</li>
                             <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("clearChannelWindow")}}>Clear channel window</li>
-                            <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("leaveChannel")}}>Leave channel</li>
+                            {
+                                !this.props.curentUser.creator ?
+                                    <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("leaveChannel")}}>Leave channel</li>
+                                    :""
+                            }
+
                             <li className='dropDownBtn' onClick={(e)=>{e.preventDefault();e.stopPropagation();this.props.onContextMenuResponse("chgChNtfStatus")}}>{this.props.userNRSStatus ? "Disable Notifications" : "Enable Notifications"}</li>
                         </ul>
                         :

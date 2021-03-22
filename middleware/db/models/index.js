@@ -790,8 +790,24 @@ Room.joinToRoom = async function(roomName,joined) {
         return {err:err,room:null,user:null};
     }
 };
+//close room
+Room.closeRoom = async function(roomName) {
+    try {
+        let room = await Room.findOne({
+            where:{name:roomName},
+            include:[
+                {model: User,as:'members',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}},
+                {model: User,as:'blockedMembers',include:{model:Room,as:'rooms',attributes: ['name'],through:{attributes: ['enable','admin','creator']}}}
+            ],
+        });
+        
+    } catch (err) {
+        console.log('closeRoom err: ',err);
+        return {err:err,room:null,members:null};
+    }
+};
 //////////////////////////////////////////////////////////////////
-//Create User Table
+//Create Channel Table
 const Channel = sequelize.define('channel', {
     _id: {
         type: Sequelize.INTEGER,

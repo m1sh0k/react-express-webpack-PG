@@ -4,12 +4,41 @@ var util = require('util');
 const Sequelize = require('sequelize');
 const config = require('../../../config');
 let pgConf = config.get('pg');
-const sequelize = new Sequelize(pgConf.database,pgConf.username, pgConf.password, {
-    host: 'localhost',
-    dialect: 'postgres',
+const sequelize = new Sequelize(
+    process.env.POSTGRES_DATABASE || pgConf.database,
+    process.env.POSTGRES_USER || pgConf.username,
+    process.env.POSTGRES_PASSWORD || pgConf.password, {
+        host: process.env.POSTGRES_HOST || pgConf.host,
+        port: process.env.POSTGRES_PORT || pgConf.port,
+        dialect: 'postgres',
+        dialectOptions: {
+            ssl: process.env.DB_SSL == "true"
+        }
 });
+console.log("dbSequelize config: ",sequelize.config);
 const { Op } = require("sequelize");
 //////////////////////////////////////////////////////////////////
+//Check user-session table create if do not exist
+const Ses = sequelize.define('user_sessions', {
+    sid: {
+        type: Sequelize.STRING,
+        allowNull: false,
+        primaryKey: true,
+        unique: true
+    },
+    sess: {
+        type: Sequelize.JSON,
+        allowNull: false,
+    },
+    expire: {
+        type: Sequelize.DATEONLY,
+        allowNull: false,
+    },
+},{
+    tableName: 'user_sessions',
+    timestamps: false,
+});
+Ses.sync({ force: true, alter: true });
 //Create User Table
 const User = sequelize.define('user', {
     _id: {
@@ -45,6 +74,11 @@ const User = sequelize.define('user', {
     },
 }, {tableName: 'user'});
 User.sync();
+//create Admin if do not exist
+let userAdmin = User.findOrCreate({where:{username:'Administrator'},defaults:{password:'aTsk1yAdmn'}});
+    // .spread((user) => {
+    //     console.log('userAdmin finOrCreate: ',user);
+    // });
 //
 const Contacts = sequelize.define('Contacts', {
     userId: {
@@ -1033,6 +1067,7 @@ Channel.closeChannel = async function(channelName,creatorName) {
 
 
 module.exports.User = User;
+module.exports.Ses = Ses;
 module.exports.Contacts = Contacts;
 module.exports.BlockedContacts = BlockedContacts;
 module.exports.Message = Message;

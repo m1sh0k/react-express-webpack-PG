@@ -1,0 +1,41 @@
+
+version: "3.9"
+services:
+  #-----------------------------------
+  api:
+    build:
+      context: .
+    container_name: "api"
+    #    image: chatdemo:latest
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_DATABASE: postgres
+#    depends_on:
+#      - postgres
+    network_mode: service:postgres
+#    links:
+#      - postgres
+#    ports:
+#      - '7777:7777'
+  #-----------------------------------
+  postgres:
+    container_name: "database"
+    restart: always
+    image: postgres:11.4
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+#    ports:
+#      - '5432:5432'
+    ports:
+      - "5432:5432"
+      - "7777:7777"
+    volumes:
+      - chat-db:/var/lib/postgresql/data
+
+#-----------------------------------
+volumes:
+  chat-db:
+

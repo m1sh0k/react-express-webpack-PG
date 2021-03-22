@@ -6,6 +6,7 @@
     Download project "Chat"  https://codeload.github.com/6o6p1k/react-express-webpack-PG/zip/refs/heads/master 
     Unzip the project to "Chat" dir.
     Pres Win+R. Type "cmd" Pres Enter
+    change directory to you catalog cd /<disk label> <disk label>:\<path>\Chat
     type docker-compose up --buld
     open your brouser and go to https://localhost:7777 allow not secure connection
     login in with Login: Administrator, Pasword: aTsk1yAdmn  or Join in with you login/password    

@@ -8,5 +8,5 @@ USER node
 RUN npm install
 # Bundle app source
 COPY --chown=node:node . .
-EXPOSE 7777
+EXPOSE 3000
 CMD [ "node", "appDev.js" ]

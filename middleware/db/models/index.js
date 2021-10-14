@@ -3,7 +3,10 @@ var CryptoJS = require('crypto-js');
 var util = require('util');
 const Sequelize = require('sequelize');
 const config = require('../../../config');
+//const { Readable } = require('stream');
+let Buffer = require('buffer').Buffer;
 let pgConf = config.get('pg');
+let fs = require('fs');
 const sequelize = new Sequelize(
     process.env.POSTGRES_DATABASE || pgConf.database,
     process.env.POSTGRES_USER || pgConf.username,
@@ -38,7 +41,8 @@ const Ses = sequelize.define('user_sessions', {
     tableName: 'user_sessions',
     timestamps: false,
 });
-Ses.sync({ force: true, alter: true });
+Ses.sync();
+//Ses.sync({ force: true, alter: true });
 //Create User Table
 const User = sequelize.define('user', {
     _id: {
@@ -72,6 +76,17 @@ const User = sequelize.define('user', {
         type: Sequelize.STRING,
         allowNull: false,
     },
+    avatar:{
+        type: Sequelize.BLOB,
+        get(){
+            const rawValue = this.getDataValue('avatar');
+            if(!rawValue) return null;
+            //console.log("binaryFileData after read from DB: ",rawValue);
+            let data = Buffer.from(rawValue,'binary').toString('base64');
+            //console.log("base64 after read from DB: ",data);
+            return data;
+        }
+    }
 }, {tableName: 'user'});
 User.sync();
 //create Admin if do not exist
@@ -148,7 +163,7 @@ User.authorize = async function(paramAuth) {
     let err = {};
     try {
         user = await User.findOne({where:{username: paramAuth.username}});
-        console.log('async user:',user);
+        //console.log('async user:',user);
         if (user) {
             if(user.checkPassword(paramAuth.password)) {
                 return {err:null,user:user};
@@ -331,7 +346,7 @@ User.changeData = async function(paramAuth) {
         user = await User.findOne({where:{username: paramAuth.oldUsername}});
         console.log('async changeData user:',user);
         let newUserName = await User.findOne({where:{username:paramAuth.newUsername}});
-        if(newUserName) return {err:"New Username is already taken.",user:null};
+        if(newUserName && paramAuth.newUsername !== paramAuth.oldUsername ) return {err:"New Username is already taken.",user:null};
         if (user) {
             if(user.checkPassword(paramAuth.oldPassword)) {
                 user = await user.update({

@@ -114,7 +114,7 @@ async function aggregateUserData(username) {
             });
             let nameUserDB =  await data.reformatData();
             let contData = await Contacts.findOne({where:{userId:userData._id, contactId:nameUserDB._id}});
-            console.log("aggDataRooms contData: ",contData);
+            //console.log("aggDataRooms contData: ",contData);
             let banned = nameUserDB.blockedContacts.includes(username);
             let authorized =  !(!nameUserDB.contacts.includes(username) && !nameUserDB.blockedContacts.includes(username));
             let {err,mes} = await Message.messageHandler({sig:setGetSig([username,name])});
@@ -195,7 +195,7 @@ async function aggregateUserData(username) {
             let {err,mes} = await Message.messageHandler({sig:name});
             let mesFltr = mes.filter(itm => itm.author !== username && itm.recipients.some(itm => itm.username === username) && !itm.recipients.find(itm => itm.username === username).status);
             let channelData = await ChannelUser.findOne({where:{userId:userData._id, channelId:channel._id}});
-            console.log('aggDataRooms mesFltr: ',mesFltr.length);
+            //console.log('aggDataRooms mesFltr: ',mesFltr.length);
             return channels[i] = {
                 name:name,
                 msgCounter:mesFltr.length,
@@ -217,7 +217,8 @@ async function aggregateUserData(username) {
         //console.log("aggregateUserData: ",username,": ",userData);
         return userData;
     } catch (err) {
-        console.log("aggregateUserData err: ",err)
+        console.log("aggregateUserData err: ",err);
+        return new DevError(500, 'Aggregate User Data error: ' + err);
     }
 }
 
@@ -305,7 +306,7 @@ module.exports = function (server) {
         let username = socket.request.user.username;//req username
         let reqSocketId = socket.id;//req user socket id
         const userDB = await aggregateUserData(username);
-        console.log('connection userDB: ',userDB);
+        //console.log('connection userDB: ',userDB);
         //update global chat users obj
         //obj to store  onLine users sockedId
         globalChatUsers[username] = {
@@ -316,7 +317,7 @@ module.exports = function (server) {
             rooms:userDB.rooms.map(itm => itm.name) || [],
             channels:userDB.channels.map(itm => itm.name) || [],
         };
-        console.log('connection globalChatUsers: ',globalChatUsers);
+        //console.log('connection globalChatUsers: ',globalChatUsers);
         //update UserData
         socket.emit('updateUserData',userDB);
         //Update if username was changed

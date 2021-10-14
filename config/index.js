@@ -1,14 +1,16 @@
 var fs = require('fs');
 var nconf = require('nconf');
 var path = require('path');
+//console.log("process.env: ",process.env);
 
 // Setup nconf to use (in-order):
 //   1. Command-line arguments
 //   2. Environment variables
 //   3. A file located at 'path/to/config.json'
+console.log("config file will load: ",process.env.OS === 'Windows_NT' ? 'config.json' : 'configForDocker.json');
 nconf.argv()
     .env()
-    .file({ file: path.join(__dirname ,'config.json') });
+    .file({ file: path.join(__dirname ,process.env.OS === 'Windows_NT' ? 'config.json' : 'configForDocker.json') });
 
 /*// Set a few variables on `nconf`.
 nconf.set('database:host', '127.0.0.1');

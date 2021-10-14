@@ -4,8 +4,8 @@
   "pg": {
     "user": "postgres",
     "host": "localhost",
-    "database": "postgres",
-    "password": "postgres",
+    "database": "react_express_webpack_PG",
+    "password": "19Inetkmn83",
     "port": 5432
   },
   "session": {

@@ -5,8 +5,12 @@ var HttpError = require('./../error').HttpError;
 var AuthError = require('./../error').AuthError;
 var config = require('../../config');
 var path = require('path');
+let Buffer = require('buffer').Buffer;
 //Add eventEmitter
 var common = require('../common').commonEmitter;
+//multer
+const multer  = require("multer");
+
 
 
 
@@ -50,7 +54,7 @@ module.exports = function(app) {
             }
 
         } catch(err) {
-            console.log('/login err: ',err);
+            console.log('/register err: ',err);
             return next(err);
         }
     });
@@ -124,7 +128,82 @@ module.exports = function(app) {
             res.send({user});
             common.emit('changeUserName',newUsername,(err)=>{if(err) return next(err)});//Internal Node emit to socketIo changeUserName
         } catch (err) {
-            console.log('/login err: ',err);
+            console.log('/changeUserData err: ',err);
+            return next(err);
+        }
+    });
+    //multer uploader
+    const storage = multer.diskStorage({
+        destination: function (req, file, callback) {
+            callback(null, 'uploads/');
+        },
+        filename: function (req, file, callback) {
+            callback(null, file.originalname + '.' + file.mimetype.split('/')[1]);
+        }
+    });
+
+    function imageFilter(req, file, cb){
+        if (file.mimetype.startsWith("image")) {
+            cb(null, true);
+        } else {
+            cb("Please upload only images.", false);
+        }
+    };
+
+    const upload = multer({ storage:storage, fileFilter: imageFilter});
+    //read file
+    function readBinary(fileLink){
+        return new Promise((resolve, reject) => {
+            fs.readFile(fileLink,(err,data)=>{
+                if(err) reject(err)
+                else resolve(data);
+            });
+
+        });
+    }
+
+    function streamReadBinary(fileLink){
+        let stream = new fs.ReadStream(fileLink);
+        return new Promise((resolve, reject) => {
+            let dataBuf = [];
+            stream.on("data", chunk => dataBuf.push(chunk));
+            stream.on("end", () => resolve(Buffer.concat(dataBuf)));
+            stream.on("error", err => reject(err));
+        });
+    }
+
+    app.post('/changeUserImg',upload.single('image'), async function(req, res, next) {
+        try {
+            //console.log('/changeUserImg req: ',req);
+            let userSesId = req.session.user;
+            console.log('userSes: ', userSesId);
+            let fileData = req.file;
+            let fileName = fileData.originalname + '.' + fileData.mimetype.split('/')[1];
+            let fileLink = './uploads/'+fileName;
+            console.log('fileLink: ', fileLink);
+            let binaryFileData;
+            console.log('filedata: ',fileData);
+            if(!fileData){
+                res.sendStatus(400);
+            }
+            else{
+                binaryFileData = await readBinary(fileLink);
+                //for big file
+                //await streamReadBinary(fileName)
+                // console.log("binaryFileData before write to DB: ",binaryFileData);
+                // console.log("binaryStreamFileData: ",await streamReadBinary(fileName));
+                if(!binaryFileData) return next("Binary data file undefined!");
+                await User.update({
+                        "avatar":binaryFileData//binaryFileData,
+                    },
+                    {where:{_id:userSesId}});
+                await fs.promises.unlink(fileLink);
+                let user = await User.findOne({where:{_id:userSesId}});
+                console.log("changeUserImg user: ",user);
+                res.send({user});
+            }
+        } catch (err) {
+            console.log('/changeUserImg err: ',err);
             return next(err);
         }
     });

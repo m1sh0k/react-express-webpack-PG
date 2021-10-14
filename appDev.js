@@ -1,17 +1,18 @@
-var express = require('express');
-var http = require('http');
-var https = require('https');
-var path = require('path');
-var config = require('./config');
-var favicon = require('static-favicon');
-var bodyParser = require('body-parser');
-var routes = require('./middleware/routes');
-var errorHandler = require('./middleware/errorHandler');
-var io = require('./middleware/socket');
-var session = require('express-session');
-var sessionStore = require('./middleware/db/sessionStore');
-var ip = require('ip');
-var fs = require('fs');
+const express = require('express');
+const http = require('http');
+const https = require('https');
+const path = require('path');
+const config = require('./config');
+const favicon = require('static-favicon');
+const bodyParser = require('body-parser');
+const routes = require('./middleware/routes');
+const errorHandler = require('./middleware/errorHandler');
+const io = require('./middleware/socket');
+const session = require('express-session');
+const sessionStore = require('./middleware/db/sessionStore');
+const ip = require('ip');
+const fs = require('fs');
+
 
 //SSL
 var options = {
@@ -39,6 +40,8 @@ app.use((webpackHRM)(compiler));
 app.use(favicon());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded());
+app.use(bodyParser.urlencoded({extended: false, limit: '5mb'}));
+
 
 app.use(session({
     secret: config.get('session:secret'),

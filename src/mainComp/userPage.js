@@ -9,7 +9,14 @@ import Confirm from '../partials/confirmModalWindow.js'
 
 class UserP extends React.Component {
     constructor (props) {
-        var user = JSON.parse(sessionStorage.getItem('user')).user;
+
+        let user = JSON.parse(sessionStorage.getItem('user')).user;
+        console.log("UP user: ",user);
+        let image='';
+        if(user.avatar) {
+            image = `data:image/png;base64,${user.avatar}`
+        } else image = undefined;
+        //console.log("img: ",image);
         super(props);
         this.state = {
             chatRedirect: false,
@@ -23,6 +30,8 @@ class UserP extends React.Component {
             PromptModalWindow:false,
             promptRes:undefined,
             confirmRes:undefined,
+            userImg:image,
+            userImgFile:undefined,
         };
     };
     //modal window handler
@@ -202,7 +211,7 @@ class UserP extends React.Component {
             this.setState({err: {message:'Passwords not equal! Change passwords and try one more!'}, modalWindow:true,});
             return; //alert('Passwords not equal! Change passwords and try one more.');
         }
-        //console.log('oldUsername: ',oldUsername,',','newUsername: ',username,',','newPassword: ',password);
+        console.log('oldUsername: ',oldUsername,',','newUsername: ',username,',','newPassword: ',password);
         var data = 'oldUsername='+ encodeURIComponent(oldUsername)
             + '&username=' + encodeURIComponent(username)
             +'&password=' + encodeURIComponent(password)
@@ -229,6 +238,49 @@ class UserP extends React.Component {
         };
         return false;
 };
+    //loadUserImg
+    handleSetImg =(event)=>{
+        console.log('handleSetImg: ',event.target)
+        if(event.target.files.length > 1 ) {
+            this.setState({err: {message:'More then 1 file selected!'}, modalWindow:true,});
+            return;
+        }
+
+        this.setState({
+            userImg: URL.createObjectURL(event.target.files[0]),
+            userImgFile:event.target.files[0]
+        },()=>console.log("imgSet: ",this.state));
+    };
+
+    uploadUserImg =()=>{
+        //console.log("sendUserImg blob: ",this.state);
+        let userImgFile = this.state.userImgFile;
+        console.log("userImgFile: ",userImgFile);
+        console.log("userImgFile.name: ",userImgFile.name);
+        if(!userImgFile) return this.setState({err: {message:'User image did not selected!!'}, modalWindow:true,});
+        const fd  = new FormData();
+        fd.append('image',userImgFile,"userID_"+this.state.user._id);
+        console.log("FormData: ",fd);
+        let xhr = new XMLHttpRequest();
+        xhr.open('POST', '/changeUserImg',true);
+        xhr.send(fd);
+        xhr.onload  = () => {
+            console.log('uploadUserImg res: ',xhr);
+            if (xhr.readyState === xhr.DONE) {
+                if (xhr.status === 200) {
+                    this.setState({err: {message:'User image changed successful!'}, modalWindow:true,});
+                    sessionStorage.setItem('user', xhr.response);
+                    setTimeout(()=>{this.setState({ chatRedirect: true });},2000);
+
+                } else {
+                    //console.log('xhr.onload: ','err');
+                    sessionStorage.setItem('error', xhr.response);
+                    this.setState({ errorRedirect: true });
+                }
+            }
+        };
+        return false;
+    }
 
     render() {
         //console.log('/UP user: ',this.state.user);
@@ -262,6 +314,30 @@ class UserP extends React.Component {
                     ev.stopPropagation();
                     this.sendAuth();
                 }} className="user-page" name="loginform" id="form">
+
+                    <div className="form-group">
+                        <div className="upload-img-block">
+                                <div>
+                                <label for="file-upload" class="custom-file-upload">
+                                    {this.state.userImg ?
+                                        <img id='userImg' src={this.state.userImg}/>
+                                        :
+                                        <span>Upload your image</span>
+                                    }
+                                </label>
+                                < input type = "file" id="file-upload" onChange={this.handleSetImg}/>
+                                </div>
+                            {this.state.userImg ?
+                                <div name="buttonform">
+                                    <button onClick={this.uploadUserImg} className="btn" data-loading-text="Sending...">
+                                        Save
+                                    </button>
+                                </div>
+                                : ''
+                            }
+                        </div>
+
+                    </div>
 
                     <div className="form-group">
                         <label htmlFor="input-username" className="control-label">New Name {(this.state.newNameStatus)?(this.state.newNameStatus):('')}</label>

@@ -1,35 +1,38 @@
-var path = require('path');
-var util = require('util');
 var http = require('http');
 
-function HttpError(status, message) {
-    console.log("HttpError error done status: ",status,", message: ",message);
-    Error.apply(this, arguments);
-    Error.captureStackTrace(this, HttpError);
-    this.status = status;
-    this.message = message || http.STATUS_CODES[status] || "Error";
+
+class HttpError extends Error {
+    constructor (status, message) {
+        super();
+        console.log("HttpError error done status: ",status,", message: ",message);
+        this.name = 'HttpError';
+        this.status = status;
+        this.message = message || http.STATUS_CODES[status] || "Error";
+        Error.captureStackTrace(this, HttpError);
+    }
+}
+module.exports.HttpError = HttpError;
+let value1 = 5;
+class AuthError extends Error {
+    constructor ( message) {
+        super();
+        console.log("AuthError error done message: ",message);
+        this.name = 'AuthError';
+        this.message = message;
+        Error.captureStackTrace(this, AuthError);
+    }
+}
+module.exports.AuthError = AuthError;
+
+class DevError extends Error {
+    constructor ( message) {
+        super();
+        console.log("AuthError error done message: ",message);
+        this.name = 'DevError';
+        this.message = message;
+        Error.captureStackTrace(this, DevError);
+    }
 }
 
-util.inherits(HttpError, Error);
-HttpError.prototype.name = 'HttpError';
-exports.HttpError = HttpError;
+module.exports.DevError = DevError;
 
-function AuthError(message) {
-    console.log("AuthError error done message: ",message);
-    Error.apply(this, arguments);
-    Error.captureStackTrace(this, AuthError);
-    this.message = message;
-}
-util.inherits(AuthError, Error);
-AuthError.prototype.name = 'AuthError';
-exports.AuthError = AuthError;
-
-function DevError(message) {
-    console.log("DevError error done message: ",message);
-    Error.apply(this, arguments);
-    Error.captureStackTrace(this, DevError);
-    this.message = message;
-}
-util.inherits(DevError, Error);
-DevError.prototype.name = 'DevError';
-exports.DevError = DevError;

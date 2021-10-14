@@ -1309,3 +1309,31 @@ footer a:active{
 .move-up{
     transform: rotate(180deg);
 }
+.upload-img-block{
+    display: flex;
+    align-items: center;
+    justify-content:flex-start;
+    width: 100%;
+}
+div [name="buttonform"]{
+    margin-left: 10px;
+}
+input[type="file"] {
+    display: none;
+}
+.custom-file-upload {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    background-color: #c9c9c9c2;
+    color: #2da292;
+    text-align: center;
+}
+#userImg{
+    max-width: 100px;
+    max-height: 100px;
+    border-radius: 50%;
+}

@@ -52,6 +52,16 @@ const User = sequelize.define('user', {
         autoIncrement: true,
         unique: true
     },
+    email:{
+        type: Sequelize.STRING,
+        allowNull: true,
+        unique: true
+    },
+    emailConfirmed:{
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue:false,
+    },
     username: {
         type: Sequelize.STRING,
         allowNull: false,
@@ -88,9 +98,9 @@ const User = sequelize.define('user', {
         }
     }
 }, {tableName: 'user'});
-User.sync();
+User.sync({ alter: true });
 //create Admin if do not exist
-let userAdmin = User.findOrCreate({where:{username:'Administrator'},defaults:{password:'aTsk1yAdmn'}});
+let userAdmin = User.findOrCreate({where:{username:'Administrator'},defaults:{password:'Administrator'}});
     // .spread((user) => {
     //     console.log('userAdmin finOrCreate: ',user);
     // });
@@ -343,15 +353,15 @@ User.changeData = async function(paramAuth) {
     let user = {};
     let err = {};
     try {
-        user = await User.findOne({where:{username: paramAuth.oldUsername}});
+        user = await User.findOne({where:{_id: paramAuth._id}});
         console.log('async changeData user:',user);
         let newUserName = await User.findOne({where:{username:paramAuth.newUsername}});
         if(newUserName && paramAuth.newUsername !== paramAuth.oldUsername ) return {err:"New Username is already taken.",user:null};
         if (user) {
             if(user.checkPassword(paramAuth.oldPassword)) {
                 user = await user.update({
-                    username: paramAuth.newUsername,
-                    password: paramAuth.newPassword
+                    username: paramAuth.newUsername ? paramAuth.newUsername : user.username,
+                    password: paramAuth.newPassword ? paramAuth.newPassword : paramAuth.oldPassword,
                 },{
                     where:{
                         username:paramAuth.oldUsername

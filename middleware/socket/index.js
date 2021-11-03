@@ -257,7 +257,7 @@ module.exports = function (server) {
             let {errLU,user} = await loadUser(session);
             if(errLU) return callback(JSON.stringify(new DevError(500, 'DB error: ' + error)));
             //console.log('loadUser userId: ',user);
-            if(!user) return callback(JSON.stringify(new  HttpError(401, 'Anonymous session may not connect')));
+            if(!user) return callback(JSON.stringify(new  HttpError(401, 'Anonymous session unable to connect ')));
             if(globalChatUsers[user.username]) {
                 //console.log("multiChatConnection");
                 delete globalChatUsers[user.username];

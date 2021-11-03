@@ -1,0 +1,30 @@
+{
+  "port": 7777,
+  "AdministratorId": "1",
+  "pg": {
+    "user": "postgres",
+    "host": "localhost",
+    "database": "postgres",
+    "password": "postgres",
+    "port": 5432
+  },
+  "session": {
+    "secret": "bdol5iuEaCGSJeteoMjgWyTAo0HOI4ot",
+    "resave": true,
+    "saveUninitialized": true,
+    "key": "sid",
+    "cookie": {
+      "path": "/",
+      "httpOnly": true,
+      "maxAge": null
+    }
+  },
+  "nodemailer": {
+    "service": "gmail",
+    "auth": {
+      "user": "youChatServiceEmail@gmail.com",
+      "pass": "youPasswordHere"
+    }
+  }
+}
+

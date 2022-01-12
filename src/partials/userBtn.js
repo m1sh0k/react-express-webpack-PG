@@ -83,6 +83,7 @@ class UserBtn extends React.Component {
     render() {
         //console.log('UserBtn props: ',this.props);
         let itm = this.props.itm;
+        console.log('UserBtn props.itm: ',this.props.itm);
         let i = this.props.i;
         return (
             <div key={i}
@@ -144,7 +145,7 @@ class UserBtn extends React.Component {
                         contextMenuLocation={this.state.contextMenuLocation}
                         userList={this.props.userList ? this.props.userList.filter(name => !itm.members.map(itm => itm.username).some(itm => itm === name)) : ""}
                         contacts={this.props.contacts ? this.props.contacts : ""}
-                        curentUser={itm.members.find(itm => itm.username === this.props.username)}
+                        curentUser={itm.members ? itm.members.find(itm => itm.username === this.props.username) : ""}
                         userRoomList={this.props.roomList || this.props.channelList ? itm.members.filter(itm => itm.username !== this.props.username)/*.map(itm => itm.username).filter(name => name !== this.props.username)*/ : ''}//filter added users in room
                         userBanRoomList={this.props.roomList ? itm.blockedMembers.map(itm => itm.username) : ''}
                         userNRSStatus={this.props.userNRSStatus}

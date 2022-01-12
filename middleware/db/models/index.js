@@ -9,7 +9,7 @@ let pgConf = config.get('pg');
 let fs = require('fs');
 const sequelize = new Sequelize(
     process.env.POSTGRES_DATABASE || pgConf.database,
-    process.env.POSTGRES_USER || pgConf.username,
+    process.env.POSTGRES_USER || pgConf.user,
     process.env.POSTGRES_PASSWORD || pgConf.password, {
         host: process.env.POSTGRES_HOST || pgConf.host,
         port: process.env.POSTGRES_PORT || pgConf.port,

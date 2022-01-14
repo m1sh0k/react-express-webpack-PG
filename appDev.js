@@ -68,6 +68,12 @@ app.use('/*', function (req, res, next) {
         res.end();
     });
  });
+//check uploads DIR
+let checkDir = fs.existsSync('./uploads/');
+console.log('user uploads dir check: ', checkDir);
+//create dir if not exist
+if(!checkDir) fs.mkdirSync('./uploads/');
+//
 //Error Handler middleware
 errorHandler(app);
 //Create Server

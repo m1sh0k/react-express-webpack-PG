@@ -4,4 +4,4 @@ Dockerfile
 .dockerignore
 .git
 .gitignore
-config/config.json
+/config/config.json

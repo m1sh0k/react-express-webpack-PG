@@ -9,6 +9,7 @@
     change directory to you catalog cd /<disk label> <disk label>:\<path>\Chat
     type docker-compose up --build
     open your brouser and go to https://localhost:3000, allow not secure connection
+    restart server
     login in with Login: Administrator, Pasword: Administrator  or Join in with you login/password    
     
 # Installing from cmd. You already install git, docker 
@@ -19,4 +20,5 @@
     git clone https://github.com/m1sh0k/react-express-webpack-PG.git .
     docker-compose up --build
     open your brouser and go to https://localhost:3000, allow not secure connection
+    restart server
     login in with Login: Administrator, Pasword: Administrator  or Join in with you login/password

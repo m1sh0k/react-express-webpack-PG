@@ -1,11 +1,13 @@
 var fs = require('fs');
 var User = require('../db/models/index').User;
+var Token = require('../db/models/index').Token;
 var Message = require('../db/models/index').Message;
 var HttpError = require('./../error').HttpError;
 var AuthError = require('./../error').AuthError;
 var DevError = require('./../error').DevError;
 var config = require('../../config');
 var path = require('path');
+var CryptoJS = require('crypto-js');
 let Buffer = require('buffer').Buffer;
 //Add eventEmitter
 var common = require('../common').commonEmitter;
@@ -16,6 +18,8 @@ let sE = require('./mailer').sendMail;
 //console.log("send email function: ",sE)
 const ip = require('ip');
 //console.log('Express server listening on ip:',ip.address(),',port:',config.get('port'));
+const { Op,fn, where, col } = require("sequelize");
+
 
 
 function checkName(name){
@@ -40,7 +44,7 @@ module.exports = function(app) {
             console.log('/login username: ', req.body.username,' /login password: ',req.body.password);
             var username = req.body.username;
             var password = req.body.password;
-            if(!username || !password) return next(new HttpError(403, 'incorrect request'));
+            if(!username || !password) return next(new HttpError(403, 'Incorrect request'));
             let {err,user} = await User.authorize({username:username,password:password});
             if(err) {
                 if(err instanceof AuthError) return next(new HttpError(403, err.message))
@@ -244,6 +248,83 @@ module.exports = function(app) {
             return next(err);
         }
     })
+    //req change password. Generate token and send email
+    app.post('/resetPassword',async function(req,res,next){
+        try{
+            let emailOrName = req.body.username;
+            console.log("resetPassword email or name: ",emailOrName);
+            let user = await User.findOne({where:{
+                [Op.or]:[
+                    {username:emailOrName},
+                    {email:emailOrName}
+                    ]
+            }})
+            if(!user) return next(new HttpError(403, 'Incorrect request. User did not find!'));
+            let email = user.email;
+            let urlToken = CryptoJS.lib.WordArray.random(128 / 8).toString(CryptoJS.enc.Hex);//get urlToken
+            console.log("urlToken: ",urlToken);
+            await Token.create({token:urlToken,userId:user._id});
+
+            await sE({
+                to: email,
+                subject: "CatChat reset email",
+                text: "You are receive this email because try reset email in you CatChat account. Click to link below to complete reset email address!",
+                html: `<link>https://${ip.address()}:${config.get('port')}/reqChangePass/${urlToken}/${user._id}</link>`,
+            })
+            res.sendStatus(200);
+            //res.send("We have sent you an email with a link to reset your password.");
+        }catch(err){
+            console.log('/resetPassword err: ',err);
+            return next(err);
+        }
+    })
+    //check token and user id from email link
+    app.get('/reqChangePass/:urlToken/:userId',async function(req,res,next){
+        try{
+            let urlToken = req.params.urlToken;
+            console.log("/reqChangePass urlToken: ",urlToken);
+            let userId = req.params.userId;
+            console.log('/reqChangePass userId: ', userId);
+            let user = await User.findOne({where:{_id:userId}});
+            if(!user) return next(new HttpError(403, 'Incorrect request. User did not find!'));
+            let token = await Token.findOne({where:{token:urlToken}});
+            if(!token) return next(new HttpError(403, 'Incorrect request. Token did not find!'));
+            if(token.userId !== user._id) return next(new HttpError(403, 'Incorrect request. Wrong token!'));
+            res.redirect('/changePass/'+urlToken+'/'+user._id);
+        }catch(err){
+            console.log('/reqChangePass err: ',err);
+            return next(err);
+        }
+    })
+    //change password after check token
+    app.post('/changePassword/:urlToken/:userId',async function(req,res,next){
+        try{
+            let urlToken = req.params.urlToken;
+            let userId = req.params.userId;
+            console.log("changePassword user urlToken: ",urlToken);
+            console.log("changePassword userId: ",userId);
+            let newPassword = req.body.password;
+            let user = await User.findOne({where:{_id:userId}})
+            if(!user) return next(new HttpError(403, 'Incorrect request. User did not find!'));
+            let token = await Token.findOne({where:{token:urlToken}});
+            if(!token) return next(new HttpError(403, 'Incorrect request. Token did not find!'));
+            if(token.userId !== user._id) return next(new HttpError(403, 'Incorrect request. Wrong token!'));
+            await User.update({
+                    password:newPassword
+                },
+                {where:{_id:user._id}});
+            await Token.destroy({where:{token:urlToken}})
+            await sE({
+                to: user.email,
+                subject: "CatChat change password",
+                text: "You have successfully change your password.",
+            })
+            res.sendStatus(200);
+        }catch(err){
+            console.log('/emailConfirm:email err: ',err);
+            return next(err);
+        }
+    })
     //multer uploader
     const storage = multer.diskStorage({
         destination: function (req, file, callback) {
@@ -348,7 +429,7 @@ module.exports = function(app) {
             }
             await User.destroy({where: {_id: user._id}});
             req.session.user = user._id;
-            res.send({user});
+            res.sendStatus(200)
         } catch (err) {
             console.log('/deleteAccount err: ',err);
             return next(err);

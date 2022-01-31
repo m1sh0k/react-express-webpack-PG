@@ -1,6 +1,6 @@
 import React from 'react';
 import Page from '../layout/page.js';
-import {Redirect} from 'react-router-dom'
+import {Redirect,Link} from 'react-router-dom'
 import Modal from '../partials/modalWindow.js'
 
 class LoginP extends React.Component {
@@ -87,6 +87,7 @@ class LoginP extends React.Component {
                         <input name="password"  type="password" className="form-input" id="input-password" placeholder="Password" onChange={this.handleChange}/>
 
                     </div>
+                    <Link to="/resetPass">Fogot password?</Link>
                     <div className="form-group">
                         <div className="wrapper" >
                             <button type="submit" className="btn" data-loading-text="Sending...">SIGN IN</button>

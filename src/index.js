@@ -9,6 +9,8 @@ import UsersAdm from './mainComp/users.js'
 import { BrowserRouter,Switch, Route, Redirect} from 'react-router-dom'
 import '../public/css/app.css';
 import FrontP from "./mainComp/frontpage";
+import ResetPass from "./mainComp/resetPass"
+import ChangePass from "./mainComp/changePass"
 //import '../public/css/bootstrap/css/bootstrap.css';
 
 
@@ -29,6 +31,14 @@ function isAdministrator() {
     else {return false}
 }
 
+function checkToken(props) {
+    //do rest and check token and user id
+    console.log("checkToken: ",props)
+    let userId = props.match.params.userId;
+    let token = props.match.params.token;
+    return !userId && !token;
+}
+
 const Main = () => (
     <BrowserRouter>
         <Switch>
@@ -37,6 +47,19 @@ const Main = () => (
                 <Error error={{message:'You are always login in. Press SIGN OUT to create new account',status:'403 Forbidden'}} />
                 :
                 <Register/>}
+            />
+            <Route path="/resetPass" render={() => isLoggedIn() ?
+                <Error error={{message:'You are always login in. Go to MY PROFILE',status:'403 Forbidden'}} />
+                :
+                <ResetPass/>}
+            />
+            <Route path="/changePass/:token/:userId" render={(props) => checkToken(props) ?
+                <Error error={{message:'Incorrect request',status:'403 Forbidden'}} />
+                :
+                <ChangePass
+                    token={props.match.params.token}
+                    userId={props.match.params.userId}
+                />}
             />
             <Route path="/login" render={() => isLoggedIn() ? (
                 <Error error={{message:'You are always login in. Press SIGN OUT to change account',status:'403 Forbidden'}} />)

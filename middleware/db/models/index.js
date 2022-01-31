@@ -105,6 +105,22 @@ let userAdmin = User.findOrCreate({where:{username:'Administrator'},defaults:{pa
     //     console.log('userAdmin finOrCreate: ',user);
     // });
 //
+//token
+const Token = sequelize.define('token',{
+    token: {
+        type: Sequelize.STRING,
+        allowNull: false,
+        unique: true,
+        primaryKey: true,
+    },
+    userId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+    },
+},{timestamps: false, tableName: 'token'});
+Token.sync();
+Token.belongsTo(User);
+//
 const Contacts = sequelize.define('Contacts', {
     userId: {
         type: Sequelize.INTEGER,
@@ -1093,6 +1109,7 @@ Channel.closeChannel = async function(channelName,creatorName) {
 
 module.exports.User = User;
 module.exports.Ses = Ses;
+module.exports.Token = Token;
 module.exports.Contacts = Contacts;
 module.exports.BlockedContacts = BlockedContacts;
 module.exports.Message = Message;

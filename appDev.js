@@ -37,9 +37,8 @@ app.use(devMiddleware(compiler, {
 }));
 app.use((webpackHRM)(compiler));
 ////
-app.use(favicon());
+app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded());
 app.use(bodyParser.urlencoded({extended: false, limit: '5mb'}));
 
 
@@ -67,7 +66,7 @@ app.use('/*', function (req, res, next) {
         res.send(result);
         res.end();
     });
- });
+});
 //check uploads DIR
 let checkDir = fs.existsSync('./uploads/');
 console.log('user uploads dir check: ', checkDir);

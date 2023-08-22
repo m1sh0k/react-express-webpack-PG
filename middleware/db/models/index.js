@@ -188,7 +188,10 @@ User.authorize = async function(paramAuth) {
     let user = {};
     let err = {};
     try {
-        user = await User.findOne({where:{username: paramAuth.username}});
+        user = await User.findOne({where:{[Op.or]:{
+                    username: paramAuth.username,
+                    email:paramAuth.username
+                }}});
         //console.log('async user:',user);
         if (user) {
             if(user.checkPassword(paramAuth.password)) {

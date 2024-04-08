@@ -554,11 +554,14 @@ module.exports = function (server) {
             }
         });
         //Check contact
-        socket.on('checkContact', async function (data,cb) {
-            console.log('checkContact: ',data);
-            let user = await User.findOne({where:{username:data}}) || await User.findOne({where:{_id:data}});
-            user = await user.reformatData();
+        socket.on('checkContact', async function (nameId,cb) {
+            console.log('checkContact: ',nameId);
+            let user;
+            user = await User.findOne({where:{
+                [Op.or]:[{_id:nameId}, {username:nameId}]
+            }})
             if(user) {
+                user = await user.reformatData();
                 return cb(user.username);
             } else return cb(null)
         });

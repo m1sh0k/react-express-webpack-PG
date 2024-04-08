@@ -561,7 +561,7 @@ class Chat extends React.Component {
         //console.log("searchUser: ",data);
         this.socket.emit('checkContact',data,(name)=>{
             if(name) {
-                this.addMe(name)
+                this.addMe(name,"user")
             } else {
                 this.setState({
                     modalWindow:true,
@@ -620,7 +620,7 @@ class Chat extends React.Component {
     };
 
     addMe =(name,itmName)=> {
-        //console.log("addMe: ",name);
+        console.log("addMe name: ",name,", itmName: ", itmName);
         this.setState({
             addMeHandler: itmName === "user",
             joinToRoomHandler:itmName === "room",
@@ -1796,7 +1796,7 @@ class Chat extends React.Component {
                                                                                     {data.text}
                                                                                     <div>
                                                                                         {
-                                                                                            data.action && data.action === "shareContact" ? <button className="btnText" onClick={() => this.addMe(data.text)}>ADD</button> :
+                                                                                            data.action && data.action === "shareContact" ? <button className="btnText" onClick={() => this.addMe(data.text,"user")}>ADD</button> :
                                                                                                 data.action && data.action === "shareLocation" ?
                                                                                                     <button className="btnText" onClick={() => this.locationParse(data.text)}>SHOW</button> : ""
                                                                                         }
